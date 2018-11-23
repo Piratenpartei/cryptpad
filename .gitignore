@@ -2,7 +2,6 @@ datastore
 tasks
 www/bower_components/*
 node_modules
-/config.js
 customization
 .*.swp
 *.db
@@ -17,5 +16,4 @@ blob/
 block/
 blobstage/
 block/
-privileged.conf
 .idea/
