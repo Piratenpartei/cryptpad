@@ -18,3 +18,4 @@ block/
 blobstage/
 block/
 privileged.conf
+.idea/
