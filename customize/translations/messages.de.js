@@ -28,10 +28,14 @@ define(['/common/translations/messages.de.js'], function (Messages) {
     out.features_f_storage_anon = "Dokumente werden nach 30 Tagen Inaktivität (kein Aufruf) gelöscht";
     out.features_f_storage_registered = "20MB für Dateiablage; Dokumente werden nach 30 Tagen Inaktivität (kein Aufruf) gelöscht";
     out.imprint = 'Impressum';
-
     delete out.faq.other;
     delete out.faq.usability.feature;
 
+    out.imprint_content = '<h1 id="imprint">Impressum</h1>';
+    // privacy
+    out.privacy_content = '<h1 id="privacy">Datenschutz</h1>';
+    // tos
+    out.tos_content = '<h1 id="tos">Nutzungsbedingungen</h1>';
     return Messages;
 });
 
