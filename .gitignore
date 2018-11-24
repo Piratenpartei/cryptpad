@@ -5,7 +5,6 @@ node_modules
 customization
 .*.swp
 *.db
-/customize/
 messages.log
 .DS_Store
 www/scratch
