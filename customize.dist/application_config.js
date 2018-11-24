@@ -6,5 +6,10 @@
    but you should not change it directly (/common/application_config_internal.js)
 */
 define(['/common/application_config_internal.js'], function (AppConfig) {
+    config = AppConfig;
+    config.displayCreationScreen = false;
+    config.disableAnonymousStore = true;
+    config.availablePadTypes = ['drive', 'code', 'poll', 'kanban'];
+    config.registeredOnlyTypes = ['drive', 'code', 'poll', 'kanban'];
     return AppConfig;
 });
