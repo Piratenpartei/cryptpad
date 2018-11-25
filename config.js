@@ -2,7 +2,7 @@
 /*
     globals module
 */
-var _domain = 'http://localhost:3000/';
+var _domain = 'https://piratenpad.piratenpartei.de:3000/';
 
 // You can `kill -USR2` the node process and it will write out a heap dump.
 // If your system doesn't support dumping, comment this out and install with
