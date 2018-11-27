@@ -112,12 +112,12 @@ module.exports = {
     /*  CryptPad can log activity to stdout
      *  This may be useful for debugging
      */
-    logToStdout: true,
+    logToStdout: false,
 
     /*  CryptPad supports verbose logging
      *  (false by default)
      */
-     verbose: true,
+     verbose: false,
 
     /*  Main pages
      *  add exceptions to the router so that we can access /privacy.html
@@ -321,7 +321,7 @@ module.exports = {
      *  such that the service can be improved. Enable this with `true`
      *  and ignore feedback with `false` or by commenting the attribute
      */
-    logFeedback: true,
+    logFeedback: false,
 
     /*  If you wish to see which remote procedure calls clients request,
      *  set this to true
