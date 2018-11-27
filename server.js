@@ -49,6 +49,7 @@ if (DEV_MODE) {
 }
 
 var FRESH_MODE = !!process.env.FRESH;
+FRESH_MODE = 1;
 var FRESH_KEY = '';
 if (FRESH_MODE) {
     console.log("FRESH MODE ENABLED");
