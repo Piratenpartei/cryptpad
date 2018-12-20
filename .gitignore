@@ -2,11 +2,9 @@ datastore
 tasks
 www/bower_components/*
 node_modules
-/config.js
 customization
 .*.swp
 *.db
-/customize/
 messages.log
 .DS_Store
 www/scratch
@@ -17,4 +15,4 @@ blob/
 block/
 blobstage/
 block/
-privileged.conf
+.idea/
