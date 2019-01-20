@@ -80,30 +80,7 @@ define([
         $(crowdFunding).click(function () {
             _link.click();
         });
-
-        var blocks = h('div.container',[
-            h('div.row.justify-content-sm-center',[
-                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-host', h('div', [
-                    Pages.setHTML(h('span'), Msg.home_host),
-                    h('img', {
-                        src: "/customize/images/AGPL.png",
-                        title: Msg.home_host_agpl
-                    })
-                ])),
-                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-product', h('div', [
-                    Msg.home_product
-                ])),
-                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-help', h('div', [
-                    Msg.crowdfunding_home1,
-                    h('br'),
-                    Msg.crowdfunding_home2,
-                    h('br'),
-                    crowdFunding,
-                    _link
-                ])),
-            ])
-        ]);
-
+        
         return [
             h('div#cp-main', [
                 Pages.infopageTopbar(),
@@ -119,7 +96,6 @@ define([
                             more
                         ])
                     ]),
-                    blocks,
                     /*h('div.row', [
                         h('div.cp-crowdfunding', [
                             crowdFunding
