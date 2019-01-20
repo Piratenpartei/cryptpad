@@ -11,7 +11,7 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.disableAnonymousStore = true;
     config.disableUserlistNotifications = true;
     config.hideLoadingScreenTips = true;
-    config.availablePadTypes = ['drive', 'code', 'poll', 'kanban', 'contacts'];
-    config.registeredOnlyTypes = ['drive', 'code', 'poll', 'kanban', 'contacts'];
+    config.availablePadTypes = ['drive', 'code', 'slide', 'contacts'];
+    config.registeredOnlyTypes = ['drive', 'code', 'slide', 'contacts'];
     return AppConfig;
 });
