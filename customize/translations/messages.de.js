@@ -28,6 +28,7 @@ define(['/common/translations/messages.de.js'], function (Messages) {
     out.features_f_storage_anon = "Dokumente werden nach 30 Tagen Inaktivität (kein Aufruf) gelöscht";
     out.features_f_storage_registered = "20MB für Dateiablage; Dokumente werden nach 30 Tagen Inaktivität (kein Aufruf) gelöscht";
     out.imprint = 'Impressum';
+    out.main_catch_phrase = '"Make it so!" - Jean Luc Picard';
     delete out.faq.other;
     delete out.faq.usability.feature;
 

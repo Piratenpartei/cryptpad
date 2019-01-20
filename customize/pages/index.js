@@ -89,7 +89,7 @@ define([
                     h('div.row', [
                         h('div.cp-title.col-12.col-sm-6', [
                             h('img', { src: '/customize/cryptpad-new-logo-colors-logoonly.png?' + urlArgs }),
-                            h('h1', 'CryptPad'),
+                            h('h1', 'Piratenpartei'),
                             h('p', Msg.main_catch_phrase)
                         ]),
                         h('div.col-12.col-sm-6', [
