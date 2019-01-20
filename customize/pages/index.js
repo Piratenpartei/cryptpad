@@ -20,12 +20,8 @@ define([
         var showingMore = false;
 
         var icons = [
-                [ 'pad', '/pad/', Msg.main_richTextPad, 'pad' ],
                 [ 'code', '/code/', Msg.main_codePad, 'code' ],
                 [ 'slide', '/slide/', Msg.main_slidePad, 'slide' ],
-                [ 'poll', '/poll/', Msg.main_pollPad, 'poll' ],
-                [ 'kanban', '/kanban/', Msg.main_kanbanPad, 'kanban' ],
-                [ 'whiteboard', '/whiteboard/', Msg.main_whiteboardPad, 'whiteboard' ],
                 [ 'recent', '/drive/', LocalStore.isLoggedIn() ? Msg.main_yourCryptDrive : Msg.main_localPads, 'drive' ]
             ].filter(function (x) {
                 return isAvailableType(x[1]);
