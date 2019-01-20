@@ -1,6 +1,6 @@
 define([
     '/common/hyperscript.js',
-    '/customize/common-language.js',
+    '/common/common-language.js',
     '/customize/messages.js',
     'jquery',
 ], function (h, Language, Msg, $) {
@@ -18,8 +18,8 @@ define([
         var keys = Object.keys(languages).sort();
         keys.forEach(function (l) {
             var attr = { value: l };
-            if (selected === l) {
-            options.push(h('option', attr, languages[l])); attr.selected = 'selected'; }
+            if (selected === l) { attr.selected = 'selected'; }
+            options.push(h('option', attr, languages[l]));
         });
         var select = h('select', {}, options);
         $(select).change(function () {
@@ -62,33 +62,28 @@ define([
         return h('footer', [
             h('div.container', [
                 h('div.row', [
-                    footerCol(null, [
-                        h('div.cp-bio-foot', [
-                            h('p', Msg.main_footerText),
-                            languageSelector()
-                        ])
-                    ], ''),
                     footerCol('footer_applications', [
                         footLink('/drive/', 'main_drive'),
+                        footLink('/pad/', 'main_richText'),
                         footLink('/code/', 'main_code'),
+                        footLink('/slide/', 'main_slide'),
                         footLink('/poll/', 'main_poll'),
                         footLink('/kanban/', 'main_kanban'),
+                        footLink('/whiteboard/', null, Msg.type.whiteboard)
                     ]),
                     footerCol('footer_aboutUs', [
-                        footLink('https://blog.cryptpad.fr', 'blog'),
-                        footLink('https://labs.xwiki.com', null, 'XWiki Labs'),
-                        footLink('http://www.xwiki.com', null, 'XWiki SAS'),
-                        footLink('https://www.open-paas.org', null, 'OpenPaaS')
+                        footLink('https://piratenpartei.de', 'Webseite'),
+                        footLink('https://wiki.piratenpartei.de', null, 'Wiki'),
+                        footLink('https://lattenrost.piratenpartei.de', null, 'Piratenpartei Teams')
                     ]),
                     footerCol('footer_contact', [
-                        footLink('https://riot.im/app/#/room/#cryptpad:matrix.org', null, 'Chat'),
-                        footLink('https://twitter.com/cryptpad', null, 'Twitter'),
-                        footLink('https://github.com/xwiki-labs/cryptpad', null, 'GitHub'),
-                        footLink('/contact.html', null, 'Email')
+                        footLink('https://twitter.com/Piratenpartei', null, 'Twitter'),
+                        footLink('https://github.com/Piratenpartei/cryptpad', null, 'GitHub'),
+                        footLink('mailto:support@it.piratenpartei.de', null, 'Email')
                     ])
                 ])
             ]),
-            h('div.cp-version-footer', "CryptPad v2.13.0 (Numbat)")
+            h('div.cp-version-footer', "CryptPad v2.14.0 (Opossum)")
         ]);
     };
 
@@ -125,16 +120,12 @@ define([
         });
 
         return h('nav.navbar.navbar-expand-lg',
-            h('a.navbar-brand', { href: '/index.html'}),
-            button,
             h('div.collapse.navbar-collapse.justify-content-end#menuCollapse', [
                 //h('a.nav-item.nav-link', { href: '/what-is-cryptpad.html'}, Msg.topbar_whatIsCryptpad), // Moved the FAQ
-                h('a.nav-item.nav-link', { href: '/faq.html'}, Msg.faq_link),
-                h('a.nav-item.nav-link', { href: 'https://blog.cryptpad.fr/'}, Msg.blog),
-                h('a.nav-item.nav-link', { href: '/features.html'}, Msg.features),
-                h('a.nav-item.nav-link', { href: '/privacy.html'}, Msg.privacy),
-                h('a.nav-item.nav-link', { href: '/contact.html'}, Msg.contact),
-                h('a.nav-item.nav-link', { href: '/about.html'}, Msg.about),
+                h('a.nav-item.nav-link', { href: 'https://wiki.piratenpartei.de/IT/CryptPAD'}, Msg.faq_link),
+                h('a.nav-item.nav-link', { href: 'https://www.piratenpartei.de/kontakt/impressum/'}, Msg.imprint),
+                h('a.nav-item.nav-link', { href: 'https://www.piratenpartei.de/kontakt/datenschutzerklaerung/'}, Msg.privacy),
+                h('a.nav-item.nav-link', { href: 'mailto:support@it.piratenpartei.de'}, Msg.contact)
             ].concat(rightLinks))
         );
     };
