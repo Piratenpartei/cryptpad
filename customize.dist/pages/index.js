@@ -80,7 +80,8 @@ define([
         $(crowdFunding).click(function () {
             _link.click();
         });
-
+        var blocks = "";
+        
         return [
             h('div#cp-main', [
                 Pages.infopageTopbar(),
