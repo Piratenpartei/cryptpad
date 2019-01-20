@@ -64,12 +64,8 @@ define([
                 h('div.row', [
                     footerCol('footer_applications', [
                         footLink('/drive/', 'main_drive'),
-                        footLink('/pad/', 'main_richText'),
                         footLink('/code/', 'main_code'),
-                        footLink('/slide/', 'main_slide'),
-                        footLink('/poll/', 'main_poll'),
-                        footLink('/kanban/', 'main_kanban'),
-                        footLink('/whiteboard/', null, Msg.type.whiteboard)
+                        footLink('/slide/', 'main_slide')
                     ]),
                     footerCol('footer_aboutUs', [
                         footLink('https://piratenpartei.de', 'Webseite'),
