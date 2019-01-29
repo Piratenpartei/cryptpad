@@ -88,39 +88,8 @@ define([
             _link.click();
             Feedback.send('HOME_SUPPORT_CRYPTPAD');
         });
-
-        var blocks = h('div.container',[
-            h('div.row.justify-content-sm-center',[
-                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-host', h('div', [
-                    Pages.setHTML(h('span'), Msg.home_host),
-                    h('div.cp-img-container', [
-                        h('img.agpl', {
-                            src: "/customize/images/AGPL.png",
-                            title: Msg.home_host_agpl
-                        }),
-                        h('a.img', {
-                            href: 'https://blog.cryptpad.fr/2018/11/13/CryptPad-receives-NGI-Startup-Award/',
-                            target: '_blank'
-                        }, h('img.ngi', {
-                            src: "/customize/images/ngi.png",
-                            title: Msg.home_ngi
-                        }))
-                    ])
-                ])),
-                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-product', h('div', [
-                    Msg.home_product
-                ])),
-                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-help', h('div', [
-                    Msg.crowdfunding_home1,
-                    h('br'),
-                    Msg.crowdfunding_home2,
-                    h('br'),
-                    crowdFunding,
-                    _link
-                ])),
-            ])
-        ]);
-
+        var blocks = "";
+        
         return [
             h('div#cp-main', [
                 Pages.infopageTopbar(),
@@ -136,7 +105,6 @@ define([
                             more
                         ])
                     ]),
-                    blocks,
                     /*h('div.row', [
                         h('div.cp-crowdfunding', [
                             crowdFunding
