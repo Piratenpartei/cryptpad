@@ -190,6 +190,18 @@ module.exports = {
             note: 'storage space donated by my.awesome.website'
         }
         */
+        "https://cryptpad.piratenpartei.de/user/#/1/steffi/6x8uIP5e0C+heWyF9a8y8Up-fJpyN-Ww1zBUfAbnOhw=": {
+            limit: 200 * 1024 * 1024 * 1024,
+            plan: 'assi',
+            note: 'BuVo Assistenz'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/promasu/2S+uYgBP-FflH9XhpZM+uTIAAe3NY593DELdvRypdzI=": {
+            limit: 500 * 1024 * 1024 * 1024,
+            plan: 'admin',
+            note: "Administrator"
+        }
+
     },
 
     /*  some features may require that the server be able to schedule tasks
