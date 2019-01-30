@@ -7,7 +7,7 @@
 */
 define(['/common/application_config_internal.js'], function (AppConfig) {
     config = AppConfig;
-    config.displayCreationScreen = false;
+    config.displayCreationScreen = true;
     config.disableAnonymousStore = true;
     config.disableUserlistNotifications = true;
     config.hideLoadingScreenTips = true;
