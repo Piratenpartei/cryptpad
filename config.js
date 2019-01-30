@@ -199,7 +199,13 @@ module.exports = {
         "https://cryptpad.piratenpartei.de/user/#/1/promasu/2S+uYgBP-FflH9XhpZM+uTIAAe3NY593DELdvRypdzI=": {
             limit: 500 * 1024 * 1024,
             plan: 'admin',
-            note: "Administrator"
+            note: 'Administrator'
+        },
+        
+        "https://cryptpad.piratenpartei.de/user/#/1/derborys/MMY96qi7G1eJi3iyyM4uqGRnKZDkD27X1vPBe9-5b7Q=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'buvo',
+            note: 'BuVo'
         }
 
     },
