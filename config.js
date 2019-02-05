@@ -167,7 +167,7 @@ module.exports = {
      *    development. Running a public instance that provides a "better deal" than cryptpad.fr
      *    is effectively using the project against itself.
      */
-    defaultStorageLimit: 20 * 1024 * 1024,
+    defaultStorageLimit: 1024 * 1024 * 1024,
 
     /*
      *  CryptPad allows administrators to give custom limits to their friends.
@@ -190,23 +190,6 @@ module.exports = {
             note: 'storage space donated by my.awesome.website'
         }
         */
-        "https://cryptpad.piratenpartei.de/user/#/1/steffi/6x8uIP5e0C+heWyF9a8y8Up-fJpyN-Ww1zBUfAbnOhw=": {
-            limit: 200 *  1024 * 1024,
-            plan: 'assi',
-            note: 'BuVo Assistenz'
-        },
-
-        "https://cryptpad.piratenpartei.de/user/#/1/promasu/2S+uYgBP-FflH9XhpZM+uTIAAe3NY593DELdvRypdzI=": {
-            limit: 500 * 1024 * 1024,
-            plan: 'admin',
-            note: 'Administrator'
-        },
-        
-        "https://cryptpad.piratenpartei.de/user/#/1/derborys/MMY96qi7G1eJi3iyyM4uqGRnKZDkD27X1vPBe9-5b7Q=": {
-            limit: 500 * 1024 * 1024,
-            plan: 'buvo',
-            note: 'BuVo'
-        }
 
     },
 
@@ -330,7 +313,7 @@ module.exports = {
      *  this sets the maximum size of any one file uploaded to the server.
      *  anything larger than this size will be rejected
      */
-    maxUploadSize: 20 * 1024 * 1024,
+    maxUploadSize: 1024 * 1024 * 1024,
 
     /*  clients can use the /settings/ app to opt out of usage feedback
      *  which informs the server of things like how much each app is being
