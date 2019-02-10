@@ -201,11 +201,17 @@ module.exports = {
             plan: 'admin',
             note: 'Administrator'
         },
-        
+
         "https://cryptpad.piratenpartei.de/user/#/1/derborys/MMY96qi7G1eJi3iyyM4uqGRnKZDkD27X1vPBe9-5b7Q=": {
             limit: 500 * 1024 * 1024,
             plan: 'buvo',
             note: 'BuVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/loki/wUkBAtszF+nKsYHLwZMdoZRkJCf6+TVZoX1qz08fO3s=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'admin',
+            note: 'Administrator'
         }
 
     },
