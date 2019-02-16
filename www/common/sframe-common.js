@@ -241,7 +241,7 @@ define([
     };
 
     // Store
-    funcs.handleNewFile = function (waitFor) {
+    funcs.handleNewFile = function (waitFor, config) {
         if (window.__CRYPTPAD_TEST__) { return; }
         var priv = ctx.metadataMgr.getPrivateData();
         if (priv.isNewFile) {
@@ -262,7 +262,7 @@ define([
                 return void funcs.createPad(c, waitFor());
             }
             // If we display the pad creation screen, it will handle deleted pads directly
-            funcs.getPadCreationScreen(c, waitFor());
+            funcs.getPadCreationScreen(c, config, waitFor());
         }
     };
     funcs.createPad = function (cfg, cb) {
@@ -557,6 +557,19 @@ define([
                 UIElements.displayStorePadPopup(funcs, data);
             });
 
+            ctx.sframeChan.on('EV_LOADING_ERROR', function (err) {
+                var msg = err;
+                if (err === 'DELETED') {
+                    msg = Messages.deletedError + '<br>' + Messages.errorRedirectToHome;
+                }
+                if (err === "INVALID_HASH") {
+                    msg = Messages.invalidHashError;
+                }
+                UI.errorLoadingScreen(msg, false, function () {
+                    funcs.gotoURL('/drive/');
+                });
+            });
+
             ctx.metadataMgr.onReady(waitFor());
 
             funcs.addShortcuts();
@@ -587,14 +600,9 @@ define([
                 console.error("Can't check permissions for the app");
             }
 
-            ctx.sframeChan.on('EV_LOADING_ERROR', function (err) {
-                if (err === 'DELETED') {
-                    var msg = Messages.deletedError + '<br>' + Messages.errorRedirectToHome;
-                    UI.errorLoadingScreen(msg, false, function () {
-                        funcs.gotoURL('/drive/');
-                    });
-                }
-            });
+            try {
+                window.CP_DEV_MODE = ctx.metadataMgr.getPrivateData().devMode;
+            } catch (e) {}
 
             ctx.sframeChan.on('EV_LOGOUT', function () {
                 $(window).on('keyup', function (e) {

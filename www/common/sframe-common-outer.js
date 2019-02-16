@@ -134,6 +134,11 @@ define([
                 });
             }));
         }).nThen(function (waitFor) {
+            if (!Utils.Hash.isValidHref(window.location.href)) {
+                waitFor.abort();
+                return void sframeChan.event('EV_LOADING_ERROR', 'INVALID_HASH');
+            }
+
             $('#sbox-iframe').focus();
 
             sframeChan.on('EV_CACHE_PUT', function (x) {
@@ -255,6 +260,7 @@ define([
                 secret.keys = secret.key;
                 readOnly = false;
             }
+            Utils.crypto = Utils.Crypto.createEncryptor(Utils.secret.keys);
             var parsed = Utils.Hash.parsePadUrl(window.location.href);
             if (!parsed.type) { throw new Error(); }
             var defaultTitle = Utils.Hash.getDefaultName(parsed);
@@ -302,6 +308,7 @@ define([
                         password: password,
                         channel: secret.channel,
                         enableSF: localStorage.CryptPad_SF === "1", // TODO to remove when enabled by default
+                        devMode: localStorage.CryptPad_dev === "1",
                     };
                     if (window.CryptPad_newSharedFolder) {
                         additionalPriv.newSharedFolder = window.CryptPad_newSharedFolder;
@@ -952,6 +959,7 @@ define([
                 password = data.password;
                 var newHash = Utils.Hash.createRandomHash(parsed.type, password);
                 secret = Utils.secret = Utils.Hash.getSecrets(parsed.type, newHash, password);
+                Utils.crypto = Utils.Crypto.createEncryptor(Utils.secret.keys);
 
                 // Update the hash in the address bar
                 var ohc = window.onhashchange;
@@ -974,6 +982,7 @@ define([
                 if (data.expire) {
                     rtConfig.expire = data.expire;
                 }
+                Utils.rtConfig = rtConfig;
                 nThen(function(waitFor) {
                     if (data.templateId) {
                         if (data.templateId === -1) {

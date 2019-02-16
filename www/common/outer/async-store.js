@@ -1277,6 +1277,7 @@ define([
             }
             store.cursor.removeClient(clientId);
             store.onlyoffice.removeClient(clientId);
+
             Object.keys(Store.channels).forEach(function (chanId) {
                 var chanIdx = Store.channels[chanId].clients.indexOf(clientId);
                 if (chanIdx !== -1) {
@@ -1609,17 +1610,16 @@ define([
                 clients.forEach(function (cId) {
                     var nb = 0;
                     var ping = function () {
-                        nb++;
                         if (nb >= MAX_FAILED_PING) {
                             Store._removeClient(cId);
                             postMessage(cId, 'TIMEOUT');
-                            console.error('TIMEOUT 5 errors');
+                            console.error('TIMEOUT', cId);
                             return;
                         }
+                        nb++;
                         var to = setTimeout(ping, MAX_PING);
-                        console.log('ping');
-                        postMessage(cId, 'PING', null, function () {
-                            console.log('pong');
+                        postMessage(cId, 'PING', null, function (err) {
+                            if (err) { console.error(err); }
                             clearTimeout(to);
                         });
                     };
@@ -1627,7 +1627,6 @@ define([
                 });
             }, PING_INTERVAL);
             */
-
         };
 
         /**
