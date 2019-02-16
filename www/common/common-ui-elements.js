@@ -87,6 +87,12 @@ define([
             common.getPadAttribute('channel', waitFor(function (err, val) {
                 data.channel = val;
             }));
+            common.getPadAttribute('rtChannel', waitFor(function (err, val) {
+                data.rtChannel = val;
+            }));
+            common.getPadAttribute('lastVersion', waitFor(function (err, val) {
+                data.lastVersion = val;
+            }));
             common.getPadAttribute('atime', waitFor(function (err, val) {
                 data.atime = val;
             }));
@@ -254,15 +260,22 @@ define([
 
         if (common.isLoggedIn() && AppConfig.enablePinning) {
             // check the size of this file...
-            common.getFileSize(data.channel, function (e, bytes) {
-                if (e) {
-                    // there was a problem with the RPC
-                    console.error(e);
-
-                    // but we don't want to break the interface.
-                    // continue as if there was no RPC
-                    return void cb(void 0, $d);
-                }
+            var bytes = 0;
+            NThen(function (waitFor) {
+                var chan = [data.channel];
+                if (data.rtChannel) { chan.push(data.rtChannel); }
+                if (data.lastVersion) { chan.push(Hash.hrefToHexChannelId(data.lastVersion)); }
+                chan.forEach(function (c) {
+                    common.getFileSize(c, waitFor(function (e, _bytes) {
+                        if (e) {
+                            // there was a problem with the RPC
+                            console.error(e);
+                        }
+                        bytes += _bytes;
+                    }));
+                });
+            }).nThen(function () {
+                if (bytes === 0) { return void cb(void 0, $d); }
                 var KB = Util.bytesToKilobytes(bytes);
 
                 var formatted = Messages._getKey('formattedKB', [KB]);
@@ -1992,7 +2005,8 @@ define([
             $expire.find('#cp-creation-expire-false').attr('checked', true);
         }
     };
-    UIElements.getPadCreationScreen = function (common, cfg, cb) {
+    UIElements.getPadCreationScreen = function (common, cfg, appCfg, cb) {
+        appCfg = appCfg || {};
         if (!common.isLoggedIn()) { return void cb(); }
         var sframeChan = common.getSframeChannel();
         var metadataMgr = common.getMetadataMgr();
@@ -2119,12 +2133,14 @@ define([
                 }
                 return b.used - a.used;
             });
-            allData.unshift({
-                name: Messages.creation_newTemplate,
-                id: -1,
-                //icon: h('span.fa.fa-bookmark')
-                icon: h('span.cptools.cptools-new-template')
-            });
+            if (!appCfg.noTemplates) {
+                allData.unshift({
+                    name: Messages.creation_newTemplate,
+                    id: -1,
+                    //icon: h('span.fa.fa-bookmark')
+                    icon: h('span.cptools.cptools-new-template')
+                });
+            }
             allData.unshift({
                 name: Messages.creation_noTemplate,
                 id: 0,

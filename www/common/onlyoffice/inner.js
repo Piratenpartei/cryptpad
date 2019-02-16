@@ -49,6 +49,11 @@ define([
 
     var CHECKPOINT_INTERVAL = 50;
 
+    var debug = function (x) {
+        if (!window.CP_DEV_MODE) { return; }
+        console.log(x);
+    };
+
     var stringify = function (obj) {
         return JSONSortify(obj);
     };
@@ -203,12 +208,32 @@ define([
             cpIndex: 0
         };
 
-        var getContent = APP.getContent = function () {
+        var getContent = function () {
             try {
                 return window.frames[0].editor.asc_nativeGetFile();
             } catch (e) {
                 console.error(e);
                 return;
+            }
+        };
+
+        // Loading a checkpoint reorder the sheet starting from ID "5".
+        // We have to reorder it manually when a checkpoint is created
+        // so that the messages we send to the realtime channel are
+        // loadable by users joining after the checkpoint
+        var fixSheets = function () {
+            try {
+                var editor = window.frames[0].editor;
+                var s = editor.GetSheets();
+                if (s.length === 0) { return; }
+                var wb = s[0].worksheet.workbook;
+                s.forEach(function (obj, i) {
+                    var id = String(i + 5);
+                    obj.worksheet.Id = id;
+                    wb.aWorksheetsById[id] = obj.worksheet;
+                });
+            } catch (e) {
+                console.error(e);
             }
         };
 
@@ -232,13 +257,19 @@ define([
                     oldHashes = JSON.parse(JSON.stringify(content.hashes));
                     content.saveLock = undefined;
                     APP.onLocal();
+                    APP.realtime.onSettle(function () {
+                        fixSheets();
+                        UI.log(Messages.saved);
+                        if (ev.callback) {
+                            return void ev.callback();
+                        }
+                    });
                     sframeChan.query('Q_OO_COMMAND', {
                         cmd: 'UPDATE_HASH',
                         data: ev.hash
                     }, function (err, obj) {
                         if (err || (obj && obj.error)) { console.error(err || obj.error); }
                     });
-                    UI.log(Messages.saved);
                 });
             }
         };
@@ -560,10 +591,12 @@ define([
                 APP.chan = chan;
 
                 var send = ooChannel.send = function (obj) {
+                    debug(obj);
                     chan.event('CMD', obj);
                 };
 
                 chan.on('CMD', function (obj) {
+                    debug(obj);
                     switch (obj.type) {
                         case "auth":
                             handleAuth(obj, send);
@@ -677,19 +710,33 @@ define([
             });
         };
 
-        /*var importFile = function(content) {
-          var blob = new Blob([content], {type: 'plain/text'});
-          var file = getFileType();
-          blob.name = (metadataMgr.getMetadataLazy().title || file.doc) + '.' + file.type;
-          uploadedCallback = function() {
-            UI.confirm(Messages.oo_newVersion, function (yes) {
-                reloadDisplayed = false;
-                if (!yes) { return; }
-                common.gotoURL();
+        var importFile = function(content) {
+            // Abort if there is another real user in the channel (history keeper excluded)
+            var m = metadataMgr.getChannelMembers().slice().filter(function (nId) {
+                return nId.length === 32;
             });
-          };
-          APP.FM.handleFile(blob);
-        }*/
+            if (m.length > 1) {
+                return void UI.alert(Messages.oo_cantUpload);
+            }
+            var blob = new Blob([content], {type: 'plain/text'});
+            var file = getFileType();
+            blob.name = (metadataMgr.getMetadataLazy().title || file.doc) + '.' + file.type;
+            var uploadedCallback = function() {
+                UI.confirm(Messages.oo_uploaded, function (yes) {
+                    try {
+                         window.frames[0].editor.setViewModeDisconnect();
+                    } catch (e) {}
+                    if (!yes) { return; }
+                    common.gotoURL();
+                });
+            };
+            var data = {
+                hash: ooChannel.lastHash,
+                index: ooChannel.cpIndex,
+                callback: uploadedCallback
+            };
+            APP.FM.handleFile(blob, data);
+        };
 
         var loadLastDocument = function () {
             var lastCp = getLastCp();
@@ -823,16 +870,18 @@ define([
 
             var $rightside = toolbar.$rightside;
 
-            /*var $save = common.createButton('save', true, {}, function () {
-                saveToServer();
-            });
-            $save.appendTo($rightside);*/
+            if (window.CP_DEV_MODE) {
+                var $save = common.createButton('save', true, {}, function () {
+                    saveToServer();
+                });
+                $save.appendTo($rightside);
+            }
 
             var $export = common.createButton('export', true, {}, exportFile);
             $export.appendTo($rightside);
 
-            /*var $import = common.createButton('import', true, {}, importFile);
-            $import.appendTo($rightside);*/
+            var $import = common.createButton('import', true, {}, importFile);
+            $import.appendTo($rightside);
 
             if (common.isLoggedIn()) {
                 common.createButton('hashtag', true).appendTo($rightside);
@@ -847,6 +896,9 @@ define([
             var helpMenu = common.createHelpMenu(['beta', 'oo']);
             $('#cp-app-oo-editor').prepend(helpMenu.menu);
             toolbar.$drawer.append(helpMenu.button);
+
+            var $properties = common.createButton('properties', true);
+            toolbar.$drawer.append($properties);
         };
 
         config.onReady = function (info) {
@@ -884,11 +936,18 @@ define([
 
             openRtChannel(function () {
                 setMyId();
+                oldHashes = JSON.parse(JSON.stringify(content.hashes));
                 loadDocument(newDoc);
                 initializing = false;
                 setEditable(!readOnly);
                 UI.removeLoadingScreen();
                 common.openPadChat(APP.onLocal);
+            });
+        };
+
+        config.onError = function (err) {
+            common.onServerError(err, toolbar, function () {
+                setEditable(false);
             });
         };
 
@@ -903,11 +962,13 @@ define([
             if (content.hashes) {
                 var latest = getLastCp(true);
                 var newLatest = getLastCp();
-                if (newLatest.index >= latest.index) {
+                if (newLatest.index > latest.index) {
+                    fixSheets();
                     sframeChan.query('Q_OO_SAVE', {
                         url: newLatest.file
                     }, function () { });
                 }
+                oldHashes = JSON.parse(JSON.stringify(content.hashes));
             }
             if (content.ids) {
                 handleNewIds(oldIds, content.ids);
@@ -963,6 +1024,10 @@ define([
                 UI.addLoadingScreen();
             }));
             SFCommon.create(waitFor(function (c) { APP.common = common = c; }));
+        }).nThen(function (waitFor) {
+            common.handleNewFile(waitFor, {
+                noTemplates: true
+            });
         }).nThen(function (/*waitFor*/) {
             andThen(common);
         });

@@ -87,6 +87,7 @@ define([
                 validateKey: obj.validateKey,
                 lastKnownHash: chan.lastKnownHash || chan.lastCpHash,
                 owners: obj.owners,
+                expire: obj.expire
             };
             var msg = ['GET_HISTORY', wc.id, cfg];
             // Add the validateKey if we are the channel creator and we have a validateKey
@@ -127,7 +128,10 @@ define([
             // Keep only the history for our channel
             if (parsed[3] !== channel) { return; }
 
-            chan.lastKnownHash = msg.slice(0,64);
+            var hash = msg.slice(0,64);
+            if (hash === chan.lastKnownHash || hash === chan.lastCpHash) { return; }
+
+            chan.lastKnownHash = hash;
             ctx.emit('MESSAGE', msg, chan.clients);
             chan.history.push(msg);
         });
@@ -205,12 +209,14 @@ define([
             }
         }
 
-        var oldChannel = ctx.clients[clientId].channel;
-        var oldChan = ctx.channels[oldChannel];
-        if (oldChan) {
-            ctx.emit('LEAVE', {id: clientId}, [oldChan.clients[0]]);
+        if (ctx.clients[clientId]) {
+            var oldChannel = ctx.clients[clientId].channel;
+            var oldChan = ctx.channels[oldChannel];
+            if (oldChan) {
+                ctx.emit('LEAVE', {id: clientId}, [oldChan.clients[0]]);
+            }
+            delete ctx.clients[clientId];
         }
-        delete ctx.clients[clientId];
     };
 
 
