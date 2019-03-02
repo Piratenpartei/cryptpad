@@ -12,6 +12,6 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.disableUserlistNotifications = true;
     config.hideLoadingScreenTips = true;
     config.availablePadTypes = ['drive', 'code', 'slide', 'contacts'];
-    config.registeredOnlyTypes = ['drive'];
+    config.registeredOnlyTypes = [];
     return AppConfig;
 });
