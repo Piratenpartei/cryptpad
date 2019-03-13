@@ -212,6 +212,12 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'admin',
             note: 'Administrator'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/frecklesfairy/rwxqluVJDgUzHcOxy7a1hsJZ6dt+6dRLmfByJuoDM9Y=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'lavo',
+            note: 'LaVo'
         }
 
     },
