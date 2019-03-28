@@ -224,6 +224,18 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'lavo',
             note: 'LaVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/wuerfel/c2nrOF57bSkGeJuLXVXvtw8HfCxygXppO8nfaBWvTE8=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'p9a',
+            note: 'Leiter LGS'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/llarian/wnuzvluwd7WcrEX9e9ZyOHamtidjijthel3mwmMWAI0=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'p9a',
+            note: 'Mitarbeiter Bund'
         }
 
     },
