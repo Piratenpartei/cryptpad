@@ -220,6 +220,12 @@ module.exports = {
             note: 'LaVo'
         },
 
+        "https://cryptpad.piratenpartei.de/user/#/1/septerra/04Rgovcx5N1xWwg5OUlogjED4pridneXEYzUU6c1P3g=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'lavo',
+            note: 'LaVo'
+        },
+
         "https://cryptpad.piratenpartei.de/user/#/1/pawel.borodan@piratenpartei.de/wzugfTtR504TeE-bxnXftsdsumikjs+kv2TtXQaYgFI=": {
             limit: 500 * 1024 * 1024,
             plan: 'lavo',
