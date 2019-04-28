@@ -242,6 +242,12 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'p9a',
             note: 'Mitarbeiter Bund'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/sandraleurs/w6d78O+Jx9U7DnYgyhGw85uL-rFNVgNigRX4kxkdmz8=": {
+            limit: 200 * 1024 * 1024,
+            plan: 'ag',
+            note: 'AG-Arbeit'
         }
 
     },
