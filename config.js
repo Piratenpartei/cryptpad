@@ -248,6 +248,12 @@ module.exports = {
             limit: 200 * 1024 * 1024,
             plan: 'ag',
             note: 'AG-Arbeit'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/janrei/kD61Do0kYuFUpPW+6sSOdvGgWDjHzkiseP0SfPM0k+k=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'lavo',
+            note: 'LaVo'
         }
 
     },
