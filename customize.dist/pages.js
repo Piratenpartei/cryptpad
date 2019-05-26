@@ -83,7 +83,7 @@ define([
                     ])
                 ])
             ]),
-            h('div.cp-version-footer', "CryptPad v2.19.0 (Tapir)")
+            h('div.cp-version-footer', "CryptPad v2.20.0 (Upupa)")
         ]);
     };
 
@@ -122,10 +122,19 @@ define([
         return h('nav.navbar.navbar-expand-lg',
             h('div.collapse.navbar-collapse.justify-content-end#menuCollapse', [
                 //h('a.nav-item.nav-link', { href: '/what-is-cryptpad.html'}, Msg.topbar_whatIsCryptpad), // Moved the FAQ
+<<<<<<< HEAD
                 h('a.nav-item.nav-link', { href: 'https://wiki.piratenpartei.de/IT/CryptPAD'}, Msg.faq_link),
                 h('a.nav-item.nav-link', { href: 'https://www.piratenpartei.de/kontakt/impressum/'}, Msg.imprint),
                 h('a.nav-item.nav-link', { href: 'https://www.piratenpartei.de/kontakt/datenschutzerklaerung/'}, Msg.privacy),
                 h('a.nav-item.nav-link', { href: 'mailto:support@it.piratenpartei.de'}, Msg.contact)
+=======
+                //h('a.nav-item.nav-link', { href: '/faq.html'}, Msg.faq_link),
+                h('a.nav-item.nav-link', { href: 'https://blog.cryptpad.fr/'}, Msg.blog),
+                h('a.nav-item.nav-link', { href: '/features.html'}, Msg.features),
+                h('a.nav-item.nav-link', { href: '/privacy.html'}, Msg.privacy),
+                //h('a.nav-item.nav-link', { href: '/contact.html'}, Msg.contact),
+                //h('a.nav-item.nav-link', { href: '/about.html'}, Msg.about),
+>>>>>>> 2.20.0
             ].concat(rightLinks))
         );
     };

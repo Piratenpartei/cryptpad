@@ -7,12 +7,15 @@ ENV STORAGE=\'./storage/file\'
 ENV LOG_TO_STDOUT=true
 
 # Persistent storage needs
+VOLUME /cryptpad/cfg
 VOLUME /cryptpad/datastore
 VOLUME /cryptpad/customize
 VOLUME /cryptpad/blobstage
 VOLUME /cryptpad/pins
 VOLUME /cryptpad/tasks
 VOLUME /cryptpad/block
+VOLUME /cryptpad/blob
+VOLUME /cryptpad/blobstage
 
 # Required packages
 #   jq is a build only dependency, removed in cleanup stage
