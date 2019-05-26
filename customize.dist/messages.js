@@ -30,10 +30,10 @@ var language = getLanguage();
 // we use a requirejs map to redirect the old path to the new one and to use the
 // requirejs json plugin
 var reqPaths = {
-    "/common/translations/old/messages.js":"json!/common/translations/messages.json"
+    "/common/translations/messages.js":"json!/common/translations/messages.json"
 };
 Object.keys(map).forEach(function (k) {
-    reqPaths["/common/translations/old/messages."+k+".js"] = "json!/common/translations/messages."+k+".json";
+    reqPaths["/common/translations/messages."+k+".js"] = "json!/common/translations/messages."+k+".json";
 });
 require.config({
     map: {
