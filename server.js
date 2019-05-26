@@ -11,17 +11,7 @@ var Package = require('./package.json');
 var Path = require("path");
 var nThen = require("nthen");
 
-var config;
-try {
-    config = require('./config/config');
-} catch (e) {
-    console.log("You can customize the configuration by copying config/config.example.js to config/config.js");
-    config = require('./config/config.example');
-}
-
-if (config.adminEmail === 'i.did.not.read.my.config@cryptpad.fr') {
-    console.log("You can configure the administrator email (adminEmail) in your config/config.js file");
-}
+var config = require("./lib/load-config");
 
 var websocketPort = config.websocketPort || config.httpPort;
 var useSecureWebsockets = config.useSecureWebsockets || false;
@@ -266,15 +256,26 @@ var nt = nThen(function (w) {
         log = config.log = _log;
     }));
 }).nThen(function (w) {
-    var Tasks = require("./storage/tasks");
-    //log.debug('loading task scheduler');
-    Tasks.create(config, w(function (e, tasks) {
-        config.tasks = tasks;
-    }));
-}).nThen(function (w) {
     if (config.useExternalWebsocket) { return; }
     Storage.create(config, w(function (_store) {
         config.store = _store;
+    }));
+}).nThen(function (w) {
+    if (!config.enableTaskScheduling) { return; }
+    var Tasks = require("./storage/tasks");
+    Tasks.create(config, w(function (e, tasks) {
+        if (e) {
+            throw e;
+        }
+        config.tasks = tasks;
+        setInterval(function () {
+            tasks.runAll(function (err) {
+                if (err) {
+                    // either TASK_CONCURRENCY or an error with tasks.list
+                    // in either case it is already logged.
+                }
+            });
+        }, 1000 * 60 * 5); // run every five minutes
     }));
 }).nThen(function (w) {
     config.rpc = typeof(config.rpc) === 'undefined'? './rpc.js' : config.rpc;
@@ -294,7 +295,8 @@ var nt = nThen(function (w) {
     var hkConfig = {
         tasks: config.tasks,
         rpc: rpc,
-        store: config.store
+        store: config.store,
+        log: log
     };
     historyKeeper = HK.create(hkConfig);
 }).nThen(function () {

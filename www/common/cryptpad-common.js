@@ -77,7 +77,7 @@ define([
     // Settings only
     common.resetDrive = function (cb) {
         postMessage("RESET_DRIVE", null, function (obj) {
-            if (obj.error) { return void cb(obj.error); }
+            if (obj && obj.error) { return void cb(obj.error); }
             cb();
         });
     };
@@ -1058,14 +1058,12 @@ define([
     };
 
     var timeout = false;
+    common.onTimeoutEvent = Util.mkEvent();
     var onTimeout = function () {
-        return;
-        /*
         timeout = true;
         common.onNetworkDisconnect.fire();
-        // FIXME: no UI in outer...
-        window.alert("Timeout error, please reload this tab");
-        */
+        common.padRpc.onDisconnectEvent.fire();
+        common.onTimeoutEvent.fire();
     };
 
     var queries = {

@@ -635,7 +635,7 @@ define([
             nThen(function (waitFor) {
                 removeOwnedPads(waitFor);
             }).nThen(function () {
-                store.proxy.drive = store.fo.getStructure();
+                store.proxy.drive = store.userObject.getStructure();
                 sendDriveEvent('DRIVE_CHANGE', {
                     path: ['drive', 'filesData']
                 }, clientId);
@@ -1058,14 +1058,16 @@ define([
                 onConnect: function (wc, sendMessage) {
                     channel.sendMessage = function (msg, cId, cb) {
                         // Send to server
-                        sendMessage(msg, cb);
-                        // Broadcast to other tabs
-                        channel.pushHistory(CpNfWorker.removeCp(msg), /^cp\|/.test(msg));
-                        channel.bcast("PAD_MESSAGE", {
-                            user: wc.myID,
-                            msg: CpNfWorker.removeCp(msg),
-                            validateKey: channel.data.validateKey
-                        }, cId);
+                        sendMessage(msg, function () {
+                            // Broadcast to other tabs
+                            channel.pushHistory(CpNfWorker.removeCp(msg), /^cp\|/.test(msg));
+                            channel.bcast("PAD_MESSAGE", {
+                                user: wc.myID,
+                                msg: CpNfWorker.removeCp(msg),
+                                validateKey: channel.data.validateKey
+                            }, cId);
+                            cb();
+                        });
                     };
                     channel.wc = wc;
                     channel.queue.forEach(function (data) {
@@ -1262,9 +1264,15 @@ define([
         var messengerEventClients = [];
 
         var dropChannel = function (chanId) {
-            store.messenger.leavePad(chanId);
-            store.cursor.leavePad(chanId);
-            store.onlyoffice.leavePad(chanId);
+            try {
+                store.messenger.leavePad(chanId);
+            } catch (e) { console.error(e); }
+            try {
+                store.cursor.leavePad(chanId);
+            } catch (e) { console.error(e); }
+            try {
+                store.onlyoffice.leavePad(chanId);
+            } catch (e) { console.error(e); }
 
             if (!Store.channels[chanId]) { return; }
 
@@ -1283,8 +1291,12 @@ define([
             if (messengerIdx !== -1) {
                 messengerEventClients.splice(messengerIdx, 1);
             }
-            store.cursor.removeClient(clientId);
-            store.onlyoffice.removeClient(clientId);
+            try {
+                store.cursor.removeClient(clientId);
+            } catch (e) { console.error(e); }
+            try {
+                store.onlyoffice.removeClient(clientId);
+            } catch (e) { console.error(e); }
 
             Object.keys(Store.channels).forEach(function (chanId) {
                 var chanIdx = Store.channels[chanId].clients.indexOf(clientId);
@@ -1602,12 +1614,11 @@ define([
                 broadcast([], 'NETWORK_RECONNECT', {myId: info.myId});
             });
 
-            /*
             // Ping clients regularly to make sure one tab was not closed without sending a removeClient()
             // command. This allow us to avoid phantom viewers in pads.
             var PING_INTERVAL = 30000;
-            var MAX_PING = 1000;
-            var MAX_FAILED_PING = 5;
+            var MAX_PING = 5000;
+            var MAX_FAILED_PING = 2;
 
             setInterval(function () {
                 var clients = [];
@@ -1635,7 +1646,6 @@ define([
                     ping();
                 });
             }, PING_INTERVAL);
-            */
         };
 
         /**

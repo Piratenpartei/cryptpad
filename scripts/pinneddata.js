@@ -3,36 +3,7 @@ const Fs = require('fs');
 const Semaphore = require('saferphore');
 const nThen = require('nthen');
 const Path = require('path');
-
-/*
-    takes contents of a pinFile (UTF8 string)
-    and the pin file's name
-    returns an array of of channel ids which are pinned
-
-    throw errors on pin logs with invalid pin data
-*/
-const hashesFromPinFile = (pinFile, fileName) => {
-    var pins = {};
-    pinFile.split('\n').filter((x)=>(x)).map((l) => JSON.parse(l)).forEach((l) => {
-        switch (l[0]) {
-            case 'RESET': {
-                pins = {};
-                if (l[1] && l[1].length) { l[1].forEach((x) => { pins[x] = 1; }); }
-                break;
-            }
-            case 'PIN': {
-                l[1].forEach((x) => { pins[x] = 1; });
-                break;
-            }
-            case 'UNPIN': {
-                l[1].forEach((x) => { delete pins[x]; });
-                break;
-            }
-            default: throw new Error(JSON.stringify(l) + '  ' + fileName);
-        }
-    });
-    return Object.keys(pins);
-};
+const Pins = require('../lib/pins');
 
 /*
     takes an array of pinned file names
@@ -152,7 +123,7 @@ module.exports.load = function (config, cb) {
                 Fs.readFile(f, waitFor(returnAfter((err, content) => {
                     if (err) { throw err; }
                     // get the list of channels pinned by this log
-                    const hashes = hashesFromPinFile(content.toString('utf8'), f);
+                    const hashes = Pins.calculateFromLog(content.toString('utf8'), f);
                     if (config.unpinned) {
                         hashes.forEach((x) => { pinned[x] = 1; });
                     } else {
@@ -230,6 +201,12 @@ module.exports.load = function (config, cb) {
 if (!module.parent) {
     // if no parent, it is being invoked directly
     let config = {}; // build the config from command line arguments...
+
+    var Config = require("../lib/load-config");
+
+    config.filePath = Config.filePath;
+    config.blobPath = Config.blobPath;
+    config.pinPath = Config.pinPath;
 
     // --unpinned gets the list of unpinned files
     // if you don't pass this, it will list the size of pinned data per user

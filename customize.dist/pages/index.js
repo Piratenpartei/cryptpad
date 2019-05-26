@@ -102,7 +102,7 @@ define([
             rel: 'noopener',
         });
 
-        var crowdFunding = AppConfig.disableCrowdfundingMessages ? undefined : h('button', [
+        var crowdFunding = h('button', [
             Msg.crowdfunding_button
         ]);
 
@@ -111,7 +111,6 @@ define([
             Feedback.send('HOME_SUPPORT_CRYPTPAD');
         });
         var blocks = "";
-        
         return [
             h('div#cp-main', [
                 Pages.infopageTopbar(),
