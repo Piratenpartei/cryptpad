@@ -18,4 +18,3 @@ block/
 .idea/
 logs/
 privileged.conf
-config/config.js
