@@ -31,12 +31,9 @@ define(['/common/translations/messages.de.js'], function (Messages) {
     out.main_catch_phrase = '"Make it so!" - Jean Luc Picard';
     delete out.faq.other;
     delete out.faq.usability.feature;
-
     out.imprint_content = '<h1 id="imprint">Impressum</h1>';
     // privacy
     out.privacy_content = '<h1 id="privacy">Datenschutz</h1>';
-    // tos
-    out.tos_content = '<h1 id="tos">Nutzungsbedingungen</h1>';
     return Messages;
 });
 
