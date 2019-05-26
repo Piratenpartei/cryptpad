@@ -169,6 +169,10 @@ module.exports = {
      */
     defaultStorageLimit: 20 * 1024 * 1024,
 
+    adminKeys: [
+    "https://cryptpad.piratenpartei.de/user/#/1/promasu/2S+uYgBP-FflH9XhpZM+uTIAAe3NY593DELdvRypdzI=",
+    ],
+
     /*
      *  CryptPad allows administrators to give custom limits to their friends.
      *  add an entry for each friend, identified by their user id,
