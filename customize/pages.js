@@ -17,13 +17,15 @@ define([
         var selected = Msg._languageUsed;
         var keys = Object.keys(languages).sort();
         keys.forEach(function (l) {
-            var attr = { value: l };
-            if (selected === l) { attr.selected = 'selected'; }
+            var attr = {value: l};
+            if (selected === l) {
+                attr.selected = 'selected';
+            }
             options.push(h('option', attr, languages[l]));
         });
         var select = h('select', {}, options);
         $(select).change(function () {
-            Language.setLanguage($(select).val() || '', null, function () {
+            Language.setLanguage($(select).val() || '', null, function () {
                 window.location.reload();
             });
         });
@@ -79,7 +81,7 @@ define([
                     ])
                 ])
             ]),
-            h('div.cp-version-footer', "CryptPad v2.21.0 (Vervet)")
+            h('div.cp-version-footer', "CryptPad v2.22.0 (Wolf)")
         ]);
     };
 
