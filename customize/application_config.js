@@ -10,6 +10,7 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.displayCreationScreen = true;
     config.disableAnonymousStore = true;
     config.disableUserlistNotifications = true;
+    config.disableCrowdfundingMessages = true;
     config.hideLoadingScreenTips = true;
     config.availablePadTypes = ['drive', 'code', 'slide', 'contacts'];
     config.registeredOnlyTypes = ['drive', 'contacts'];
