@@ -34,13 +34,6 @@ define(['/common/translations/messages.de.js'], function (Messages) {
     out.imprint_content = '<h1 id="imprint">Impressum</h1>';
     // privacy
     out.privacy_content = '<h1 id="privacy">Datenschutz</h1>';
-    // tos
-    out.tos_title = 'Nutzungsbedingungen';
-    out.tos_legal = 'Sei nicht bösartig oder missbrauchend und mache nichts illegales.';
-    out.tos_availability = 'Wir hoffen, dass dir dieser Dienst nützt, aber Erreichbarkeit und Performanz können nicht garantiert werden. Bitte exportiere deine Daten regelmäßig.';
-    out.tos_e2ee = 'CryptPad-Inhalte können von allen gelesen oder bearbeitet werden, die den Fragmentbezeichner des Dokuments erraten oder auf eine andere Art davon erfahren. Wir empfehlen dir Ende-Zu-Ende verschlüsselte Nachrichtentechnik (e2ee) zum Versenden der URLs zu nutzen. Wir übernehmen keine Haftung, falls eine URL erschlichen oder abgegriffen wird.';
-    out.tos_logs = 'Metadaten, die dein Browser übermittelt, können geloggt werden, um den Dienst aufrechtzuerhalten.';
-    out.tos_3rdparties = 'Wir geben keine persönlichen Daten an Dritte weiter, außer auf richterliche Anordnung.';
     return Messages;
 });
 
