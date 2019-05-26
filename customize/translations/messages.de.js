@@ -5,7 +5,7 @@
  * If you want to check all the existing translation keys, you can open the internal language file
    but you should not change it directly (/common/translations/messages.{LANG}.js)
 */
-define(['/common/translations/old/messages.de.js'], function (Messages) {
+define(['/common/translations/messages.de.js'], function (Messages) {
     // Replace the existing keys in your copied file here:
     // Messages.button_newpad = "New Rich Text Document";
     out = Messages
@@ -24,6 +24,9 @@ define(['/common/translations/old/messages.de.js'], function (Messages) {
     out.settings_codeIndentation = 'Einrückung für den Pad(Markdown/Code)-Editor (Leerzeichen)';
     out.main_code = 'Pad(Markdown/Code)-Editor';
     out.main_codePad = 'Pad (Markdown/Code)';
+    out.features_f_pad_notes = "Pads (Markdown/Code) und (Termin-)Umfragen";
+    out.features_f_storage_anon = "Dokumente werden nach 30 Tagen Inaktivität (kein Aufruf) gelöscht";
+    out.features_f_storage_registered = "20MB für Dateiablage; Dokumente werden nach 30 Tagen Inaktivität (kein Aufruf) gelöscht";
     out.imprint = 'Impressum';
     out.main_catch_phrase = '"Make it so!" - Jean Luc Picard';
     delete out.faq.other;
