@@ -125,13 +125,8 @@ module.exports = {
      */
     mainPages: [
         'index',
-        'privacy',
         'terms',
-        'about',
-        'contact',
-        'what-is-cryptpad',
-        'features',
-        'faq'
+        'what-is-cryptpad'
     ],
 
     /*  Limits, Donations, Subscriptions and Contact
@@ -289,7 +284,7 @@ module.exports = {
      *  never sell it or send you marketing mail. If you want to block this check-in and remain
      *  completely invisible, set this and allowSubscriptions both to false.
      */
-    adminEmail: false,
+    adminEmail: "support@it.piratenpartei.de",
 
 
     /*
