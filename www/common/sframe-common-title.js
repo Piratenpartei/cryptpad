@@ -69,7 +69,9 @@ define([
                     return void UI.alert(Messages.pinLimitNotPinned, null, true);
                 } else if (err) { return; }
                 evTitleChange.fire(title);
-                if (titleUpdated) { titleUpdated(undefined, title); }
+                if (titleUpdated) {
+                    titleUpdated(undefined, title);
+                }
             });
         });
 

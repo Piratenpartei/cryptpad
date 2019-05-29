@@ -47,8 +47,6 @@ define([
         account: {},
     };
 
-    var PINNING_ENABLED = AppConfig.enablePinning;
-
     // COMMON
     common.getLanguage = function () {
         return Messages._languageUsed;
@@ -611,16 +609,6 @@ define([
         });
     };
 
-    // Messaging (manage friends from the userlist)
-    common.inviteFromUserlist = function (netfluxId, cb) {
-        postMessage("INVITE_FROM_USERLIST", {
-            netfluxId: netfluxId,
-            href: window.location.href
-        }, function (obj) {
-            if (obj && obj.error) { return void cb(obj.error); }
-            cb();
-        });
-    };
 
     // Admin
     common.adminRpc = function (data, cb) {
@@ -632,14 +620,13 @@ define([
     common.onNetworkReconnect = Util.mkEvent();
     common.onNewVersionReconnect = Util.mkEvent();
 
-    // Messaging
+    // Messaging (friend requests)
     var messaging = common.messaging = {};
-    messaging.onFriendRequest = Util.mkEvent();
-    messaging.onFriendComplete = Util.mkEvent();
-    messaging.addHandlers = function (href) {
-        postMessage("ADD_DIRECT_MESSAGE_HANDLERS", {
-            href: href
-        });
+    messaging.answerFriendRequest = function (data, cb) {
+        postMessage("ANSWER_FRIEND_REQUEST", data, cb);
+    };
+    messaging.sendFriendRequest = function (data, cb) {
+        postMessage("SEND_FRIEND_REQUEST", data, cb);
     };
 
     // Onlyoffice
@@ -669,6 +656,14 @@ define([
         postMessage("MAILBOX_COMMAND", data, cb);
     };
     mailbox.onEvent = Util.mkEvent();
+
+    // Universal
+    var universal = common.universal = {};
+    universal.execCommand = function (data, cb) {
+        postMessage("UNIVERSAL_COMMAND", data, cb);
+    };
+    universal.onEvent = Util.mkEvent();
+
 
     // Pad RPC
     var pad = common.padRpc = {};
@@ -1088,9 +1083,6 @@ define([
             var localToken = tryParsing(localStorage.getItem(Constants.tokenKey));
             if (localToken !== data.token) { requestLogin(); }
         },
-        // Messaging
-        Q_FRIEND_REQUEST: common.messaging.onFriendRequest.fire,
-        EV_FRIEND_COMPLETE: common.messaging.onFriendComplete.fire,
         // Network
         NETWORK_DISCONNECT: common.onNetworkDisconnect.fire,
         NETWORK_RECONNECT: function (data) {
@@ -1111,6 +1103,8 @@ define([
         CURSOR_EVENT: common.cursor.onEvent.fire,
         // Mailbox
         MAILBOX_EVENT: common.mailbox.onEvent.fire,
+        // Universal
+        UNIVERSAL_EVENT: common.universal.onEvent.fire,
         // Pad
         PAD_READY: common.padRpc.onReadyEvent.fire,
         PAD_MESSAGE: common.padRpc.onMessageEvent.fire,
@@ -1456,7 +1450,7 @@ define([
                 }, false);
             });
 
-        }).nThen(function (waitFor) {
+        }).nThen(function () {
             // Load the new pad when the hash has changed
             var oldHref  = document.location.href;
             window.onhashchange = function (ev) {
@@ -1490,23 +1484,6 @@ define([
                 console.log('onLogout: disconnect');
                 postMessage("DISCONNECT");
             });
-
-            if (PINNING_ENABLED && LocalStore.isLoggedIn()) {
-                console.log("logged in. pads will be pinned");
-                postMessage("INIT_RPC", null, waitFor(function (obj) {
-                    console.log('RPC handshake complete');
-                    if (obj.error) { return; }
-                    localStorage[Constants.plan] = obj.plan;
-                }));
-            } else if (PINNING_ENABLED) {
-                console.log('not logged in. pads will not be pinned');
-            } else {
-                console.log('pinning disabled');
-            }
-
-            postMessage("INIT_ANON_RPC", null, waitFor(function () {
-                console.log('Anonymous RPC ready');
-            }));
         }).nThen(function (waitFor) {
             if (sessionStorage.createReadme) {
                 var data = {

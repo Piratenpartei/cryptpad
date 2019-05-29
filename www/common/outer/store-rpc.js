@@ -58,8 +58,8 @@ define([
             ADD_SHARED_FOLDER: Store.addSharedFolder,
             LOAD_SHARED_FOLDER: Store.loadSharedFolderAnon,
             // Messaging
-            INVITE_FROM_USERLIST: Store.inviteFromUserlist,
-            ADD_DIRECT_MESSAGE_HANDLERS: Store.addDirectMessageHandlers,
+            ANSWER_FRIEND_REQUEST: Store.answerFriendRequest,
+            SEND_FRIEND_REQUEST: Store.sendFriendRequest,
             // Chat
             CHAT_COMMAND: Store.messenger.execCommand,
             // OnlyOffice
@@ -68,6 +68,8 @@ define([
             CURSOR_COMMAND: Store.cursor.execCommand,
             // Mailbox
             MAILBOX_COMMAND: Store.mailbox.execCommand,
+            // Universal
+            UNIVERSAL_COMMAND: Store.universal.execCommand,
             // Pad
             SEND_PAD_MSG: Store.sendPadMsg,
             JOIN_PAD: Store.joinPad,

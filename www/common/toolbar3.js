@@ -7,9 +7,10 @@ define([
     '/common/common-hash.js',
     '/common/common-util.js',
     '/common/common-feedback.js',
+    '/common/hyperscript.js',
     '/common/messenger-ui.js',
     '/customize/messages.js',
-], function ($, Config, ApiConfig, UIElements, UI, Hash, Util, Feedback,
+], function ($, Config, ApiConfig, UIElements, UI, Hash, Util, Feedback, h,
 MessengerUI, Messages) {
     var Common;
 
@@ -37,6 +38,7 @@ MessengerUI, Messages) {
     var TITLE_CLS = Bar.constants.title = "cp-toolbar-title";
     var NEWPAD_CLS = Bar.constants.newpad = "cp-toolbar-new";
     var LINK_CLS = Bar.constants.link = "cp-toolbar-link";
+    var NOTIFICATIONS_CLS = Bar.constants.user = 'cp-toolbar-notifications';
 
     // User admin menu
     var USERADMIN_CLS = Bar.constants.user = 'cp-toolbar-user-dropdown';
@@ -70,6 +72,7 @@ MessengerUI, Messages) {
             'class': USER_CLS
         }).appendTo($topContainer);
         $('<span>', {'class': LIMIT_CLS}).hide().appendTo($userContainer);
+        $('<span>', {'class': NOTIFICATIONS_CLS + ' cp-dropdown-container'}).hide().appendTo($userContainer);
         $('<span>', {'class': NEWPAD_CLS + ' cp-dropdown-container'}).hide().appendTo($userContainer);
         $('<span>', {'class': USERADMIN_CLS + ' cp-dropdown-container'}).hide().appendTo($userContainer);
 
@@ -164,6 +167,7 @@ MessengerUI, Messages) {
     };
     var showColors = false;
     var updateUserList = function (toolbar, config) {
+        if (!config.displayed || config.displayed.indexOf('userlist') === -1) { return; }
         // Make sure the elements are displayed
         var $userButtons = toolbar.userlist;
         var $userlistContent = toolbar.userlistContent;
@@ -229,7 +233,9 @@ MessengerUI, Messages) {
         // Display the userlist
 
         // Editors
-        var pendingFriends = Common.getPendingFriends();
+        var pendingFriends = Common.getPendingFriends(); // Friend requests sent
+        var friendRequests = Common.getFriendRequests(); // Friend requests received
+        var friendTo = +new Date() - (2 * 24 * 3600 * 1000);
         editUsersNames.forEach(function (data) {
             var name = data.name || Messages.anonymous;
             var $span = $('<span>', {'class': 'cp-avatar'});
@@ -297,9 +303,20 @@ MessengerUI, Messages) {
                 }
             } else if (Common.isLoggedIn() && data.curvePublic && !friends[data.curvePublic]
                 && !priv.readOnly) {
-                if (pendingFriends.indexOf(data.netfluxId) !== -1) {
-                    $('<span>', {'class': 'cp-toolbar-userlist-friend'}).text(Messages.userlist_pending)
-                        .appendTo($rightCol);
+                if (pendingFriends[data.curvePublic] && pendingFriends[data.curvePublic] > friendTo) {
+                    $('<button>', {
+                        'class': 'fa fa-hourglass-half cp-toolbar-userlist-button',
+                        'title': Messages.profile_friendRequestSent
+                    }).appendTo($nameSpan);
+                } else if (friendRequests[data.curvePublic]) {
+                    $('<button>', {
+                        'class': 'fa fa-bell cp-toolbar-userlist-button',
+                        'title': Messages._getKey('friendRequest_received', [name]),
+                    }).appendTo($nameSpan).click(function (e) {
+                        e.stopPropagation();
+                        UIElements.displayFriendRequestModal(Common, friendRequests[data.curvePublic]);
+                    });
+
                 } else {
                     $('<button>', {
                         'class': 'fa fa-user-plus cp-toolbar-userlist-button',
@@ -308,7 +325,9 @@ MessengerUI, Messages) {
                         ])
                     }).appendTo($nameSpan).click(function (e) {
                         e.stopPropagation();
-                        Common.sendFriendRequest(data.netfluxId);
+                        Common.sendFriendRequest(data, function (err, obj) {
+                            if (err || (obj && obj.error)) { return void console.error(err || obj.error); }
+                        });
                     });
                 }
             } else if (Common.isLoggedIn() && data.curvePublic && friends[data.curvePublic]) {
@@ -817,7 +836,6 @@ MessengerUI, Messages) {
     };
 
     var createLimit = function (toolbar) {
-        if (!Config.enablePinning) { return; }
         var $limitIcon = $('<span>', {'class': 'fa fa-exclamation-triangle'});
         var $limit = toolbar.$userAdmin.find('.'+LIMIT_CLS).attr({
             'title': Messages.pinLimitReached
@@ -914,7 +932,7 @@ MessengerUI, Messages) {
         $userButton.click(function (e) {
             e.preventDefault();
             e.stopPropagation();
-            var myData = metadataMgr.getMetadata().users[metadataMgr.getNetfluxId()];
+            var myData = metadataMgr.getUserData();
             var lastName = myData.name;
             UI.prompt(Messages.changeNamePrompt, lastName || '', function (newName) {
                 if (newName === null && typeof(lastName) === "string") { return; }
@@ -925,6 +943,62 @@ MessengerUI, Messages) {
         });
 
         return $userAdmin;
+    };
+
+    var createNotifications = function (toolbar, config) {
+        var $notif = toolbar.$top.find('.'+NOTIFICATIONS_CLS).show();
+        var div = h('div.cp-notifications-container', [
+            h('div.cp-notifications-empty', Messages.notifications_empty)
+        ]);
+        var pads_options = [div];
+        var dropdownConfig = {
+            text: '', // Button initial text
+            options: pads_options, // Entries displayed in the menu
+            container: $notif,
+            left: true,
+            common: Common
+        };
+        var $newPadBlock = UIElements.createDropdown(dropdownConfig);
+        var $button = $newPadBlock.find('button');
+        $button.attr('title', Messages.notifications_empty);
+        $button.addClass('fa fa-bell-o');
+        var $n = $button.find('.cp-dropdown-button-title').hide();
+        var $empty = $(div).find('.cp-notifications-empty');
+
+        var refresh = function () {
+            updateUserList(toolbar, config);
+            var n = $(div).find('.cp-notification').length;
+            $button.removeClass('fa-bell-o').removeClass('fa-bell');
+            $n.removeClass('cp-notifications-small');
+            if (n === 0) {
+                $button.attr('title', Messages.notifications_empty);
+                $empty.show();
+                $n.hide();
+                return void $button.addClass('fa-bell-o');
+            }
+            if (n > 99) {
+                n = '99+';
+                $n.addClass('cp-notifications-small');
+            }
+            $button.attr('title', Messages.notifications_title);
+            $empty.hide();
+            $n.text(n).show();
+            $button.addClass('fa-bell');
+        };
+
+        Common.mailbox.subscribe({
+            onMessage: function (data, el) {
+                if (el) {
+                    div.appendChild(el);
+                }
+                refresh();
+            },
+            onViewed: function () {
+                refresh();
+            }
+        });
+
+        return $newPadBlock;
     };
 
     // Events
@@ -1095,6 +1169,7 @@ MessengerUI, Messages) {
         tb['newpad'] = createNewPad;
         tb['useradmin'] = createUserAdmin;
         tb['unpinnedWarning'] = createUnpinnedWarning;
+        tb['notifications'] = createNotifications;
 
         var addElement = toolbar.addElement = function (arr, additionalCfg, init) {
             if (typeof additionalCfg === "object") { $.extend(true, config, additionalCfg); }
