@@ -12,13 +12,8 @@ define(['/common/translations/messages.js'], function (Messages) {
     // custom stuff for info pages
     // imprint
     out.imprint = 'Imprint';
-    out.imprint_content = '<h1 id="imprint">Imprint</h1>';
-
-    // privacy
-    out.privacy_content = '<h1 id="privacy">Privacy</h1>';
-
-    // tos
-    out.tos_content = '<h1 id="tos">Terms of Service</h1>';
+    out.ooslide = 'Slides (Beta)';
+    out.oodoc = 'Documents (Beta)';
     return Messages;
 });
 
