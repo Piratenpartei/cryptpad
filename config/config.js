@@ -171,6 +171,9 @@ module.exports = {
 
     adminKeys: [
     "https://cryptpad.piratenpartei.de/user/#/1/promasu/2S+uYgBP-FflH9XhpZM+uTIAAe3NY593DELdvRypdzI=",
+    "https://cryptpad.piratenpartei.de/user/#/1/derborys/MMY96qi7G1eJi3iyyM4uqGRnKZDkD27X1vPBe9-5b7Q=",
+    "https://cryptpad.piratenpartei.de/user/#/1/loki/wUkBAtszF+nKsYHLwZMdoZRkJCf6+TVZoX1qz08fO3s=",
+    "https://cryptpad.piratenpartei.de/user/#/1/janrei/kD61Do0kYuFUpPW+6sSOdvGgWDjHzkiseP0SfPM0k+k=",
     ],
 
     /*
