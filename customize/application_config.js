@@ -14,6 +14,6 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.hideLoadingScreenTips = true;
     config.availablePadTypes = ['drive', 'code', 'pad', 'slide', 'file', 'todo', 'oodoc', 'sheet', 'ooslide', 'contacts'];
     config.registeredOnlyTypes = ['contacts',];
-    config.availableLanguages = ['de',];
+    config.availableLanguages = ['de', 'en'];
     return AppConfig;
 });
