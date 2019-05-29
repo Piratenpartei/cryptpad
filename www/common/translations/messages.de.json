@@ -12,9 +12,7 @@
         "media": "Medien",
         "todo": "Aufgaben",
         "contacts": "Kontakte",
-        "sheet": "Tabelle (Beta)",
-        "ooslide": "Präsentation (Beta)",
-        "oodoc": "Text (Beta)"
+        "sheet": "Tabelle (Beta)"
     },
     "button_newpad": "Neues Rich-Text-Pad",
     "button_newcode": "Neues Code-Pad",
