@@ -64,16 +64,14 @@ define([
         return h('footer', [
             h('div.container', [
                 h('div.row', [
-                    footerCol('footer_applications', [
-                        footLink('/drive/', 'main_drive'),
-                        footLink('/code/', 'main_code'),
-                        footLink('/slide/', 'main_slide')
-                    ]),
                     footerCol('footer_aboutUs', [
                         footLink('https://piratenpartei.de', 'Webseite'),
                         footLink('https://wiki.piratenpartei.de', null, 'Wiki'),
                         footLink('https://lattenrost.piratenpartei.de', null, 'Piratenpartei Teams')
                     ]),
+                    footerCol('language', [
+                        languageSelector()
+                    ], ''),
                     footerCol('footer_contact', [
                         footLink('https://twitter.com/Piratenpartei', null, 'Twitter'),
                         footLink('https://github.com/Piratenpartei/cryptpad', null, 'GitHub'),

@@ -13,7 +13,9 @@ define(['/common/translations/messages.js'], function (Messages) {
     // imprint
     out.imprint = 'Imprint';
     out.ooslide = 'Slides (Beta)';
+    out.type.ooslide = 'Slides (Beta)';
     out.oodoc = 'Documents (Beta)';
+    out.type.oodoc = 'Documents (Beta)';
     return Messages;
 });
 

@@ -20,7 +20,9 @@ define(['/common/translations/messages.de.js'], function (Messages) {
     delete out.faq.usability.feature;
     
     out.ooslide = 'Präsentation (Beta)';
+    out.type.ooslide = 'Präsentation (Beta)';
     out.oodoc = 'Dokumente (Beta)';
+    out.type.oodoc = 'Dokumente (Beta)';
 
     out.button_newooslide = "Neue Präsentation (Beta)";
     out.button_newoodoc = "Neues Dokument (Beta)";
