@@ -65,7 +65,7 @@ define([
             h('div.container', [
                 h('div.row', [
                     footerCol('footer_aboutUs', [
-                        footLink('https://piratenpartei.de', 'Webseite'),
+                        footLink('https://piratenpartei.de', null,'Webseite'),
                         footLink('https://wiki.piratenpartei.de', null, 'Wiki'),
                         footLink('https://lattenrost.piratenpartei.de', null, 'Piratenpartei Teams')
                     ]),
