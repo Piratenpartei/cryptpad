@@ -256,6 +256,12 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'lavo',
             note: 'LaVo'
+        },
+    
+        "https://cryptpad.piratenpartei.de/user/#/1/klischeepunk/cEMyDOBy3yfAurL0QFpjzR+uNqE4SrrkrA0jjeqvUnA=": {
+            limit: 100 * 1024 * 1024,
+            plan: 'krvo',
+            note: 'KrVo'
         }
 
     },
