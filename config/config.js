@@ -260,11 +260,17 @@ module.exports = {
             plan: 'lavo',
             note: 'LaVo'
         },
-    
+
         "https://cryptpad.piratenpartei.de/user/#/1/klischeepunk/cEMyDOBy3yfAurL0QFpjzR+uNqE4SrrkrA0jjeqvUnA=": {
             limit: 100 * 1024 * 1024,
             plan: 'krvo',
             note: 'KrVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/tyg/vU-+cD7xMsKDaq3+pyl09zydvaSDp-m6Y9s7+i1xyDE=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'lavo',
+            note: 'LaVo'
         }
 
     },
