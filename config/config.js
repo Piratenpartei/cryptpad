@@ -117,7 +117,10 @@ module.exports = {
     /*  CryptPad supports verbose logging
      *  (false by default)
      */
-     verbose: false,
+    verbose: true,
+
+    logPath: '/var/log/cryptpad',
+    logLevel: 'debug',
 
     /*  Main pages
      *  add exceptions to the router so that we can access /privacy.html
@@ -351,7 +354,7 @@ module.exports = {
     /*  CryptPad's file storage adaptor is limited by the number of open files.
      *  When the adaptor reaches openFileLimit, it will clean up older files
      */
-    openFileLimit: 2048,
+    openFileLimit: 4096,
 
     /*  CryptPad's socket server can be extended to respond to RPC calls
      *  you can configure it to respond to custom RPC calls if you like.
@@ -400,7 +403,7 @@ module.exports = {
     /*  If you wish to see which remote procedure calls clients request,
      *  set this to true
      */
-    //logRPC: true,
+    logRPC: true,
 
     /* it is recommended that you serve CryptPad over https
      * the filepaths below are used to configure your certificates
