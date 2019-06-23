@@ -271,6 +271,12 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'lavo',
             note: 'LaVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/alexanderebhart/rZjuUINuKsw4IhT2sEgPDNCVVw0zlIxWMRRQ-84YZRQ=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'presse',
+            note: 'Presse'
         }
 
     },
