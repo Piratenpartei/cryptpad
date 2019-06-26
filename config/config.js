@@ -277,6 +277,12 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'presse',
             note: 'Presse'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/lorycamo/bwv0QtrZrBdWfxm-peGM1aHmfki80NnHXO2tLAcW8l4=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'presse',
+            note: 'Presse'
         }
 
     },
