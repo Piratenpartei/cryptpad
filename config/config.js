@@ -283,6 +283,18 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'presse',
             note: 'Presse'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/annette/5hgc5EFU1ATuZMa0H8El-+HEY5ttV+7ikYujR83NpAI=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'lavo',
+            note: 'LaVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/icke2aida/3hWnBdblGhLSTh9f4MfjFLlp2+KClpxwt4VqnFw9hP4=": {
+            limit: 200 * 1024 * 1024,
+            plan: 'bzba',
+            note: 'BzBA'
         }
 
     },
