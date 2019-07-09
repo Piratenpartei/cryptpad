@@ -488,6 +488,12 @@ MessengerUI, Messages) {
         var show = function () {
             if (Bar.isEmbed) { $content.hide(); return; }
             $content.show();
+            // scroll down chat
+            var $messagebox = $content.find('.cp-app-contacts-messages');
+            if ($messagebox.length) {
+                $messagebox.scrollTop($messagebox[0].scrollHeight);
+            }
+
             $button.addClass('cp-toolbar-button-active');
             config.$contentContainer.addClass('cp-chat-visible');
             $button.removeClass('cp-toolbar-notification');
@@ -519,23 +525,18 @@ MessengerUI, Messages) {
         if (!config.metadataMgr) {
             throw new Error("You must provide a `metadataMgr` to display the userlist");
         }
-        var metadataMgr = config.metadataMgr;
-        var origin = config.metadataMgr.getPrivateData().origin;
-        var pathname = config.metadataMgr.getPrivateData().pathname;
-        var hashes = metadataMgr.getPrivateData().availableHashes;
 
         var $shareBlock = $('<button>', {
             'class': 'fa fa-shhare-alt cp-toolbar-share-button',
             title: Messages.shareButton
         });
-        var modal = UIElements.createShareModal({
-            origin: origin,
-            pathname: pathname,
-            hashes: hashes,
-            common: Common
+        Common.getSframeChannel().event('EV_SHARE_OPEN', {
+            hidden: true
         });
         $shareBlock.click(function () {
-            UI.openCustomModal(UI.dialog.tabs(modal));
+            Common.getSframeChannel().event('EV_SHARE_OPEN', {
+                title: Common.getMetadataMgr().getMetadata().title
+            });
         });
 
         toolbar.$leftside.append($shareBlock);
@@ -548,23 +549,19 @@ MessengerUI, Messages) {
         if (!config.metadataMgr) {
             throw new Error("You must provide a `metadataMgr` to display the userlist");
         }
-        var metadataMgr = config.metadataMgr;
-        var origin = config.metadataMgr.getPrivateData().origin;
-        var pathname = config.metadataMgr.getPrivateData().pathname;
-        var hashes = metadataMgr.getPrivateData().availableHashes;
 
         var $shareBlock = $('<button>', {
             'class': 'fa fa-shhare-alt cp-toolbar-share-button',
             title: Messages.shareButton
         });
-        var modal = UIElements.createFileShareModal({
-            origin: origin,
-            pathname: pathname,
-            hashes: hashes,
-            common: Common
+        Common.getSframeChannel().event('EV_SHARE_OPEN', {
+            hidden: true,
+            file: true
         });
         $shareBlock.click(function () {
-            UI.openCustomModal(UI.dialog.tabs(modal));
+            Common.getSframeChannel().event('EV_SHARE_OPEN', {
+                file: true
+            });
         });
 
         toolbar.$leftside.append($shareBlock);

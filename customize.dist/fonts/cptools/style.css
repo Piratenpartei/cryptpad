@@ -1,9 +1,9 @@
 @font-face {
   font-family: 'cptools';
   src:
-    url('fonts/cptools.ttf?703wg5') format('truetype'),
-    url('fonts/cptools.woff?703wg5') format('woff'),
-    url('fonts/cptools.svg?703wg5#cptools') format('svg');
+    url('fonts/cptools.ttf?yr9e7c') format('truetype'),
+    url('fonts/cptools.woff?yr9e7c') format('woff'),
+    url('fonts/cptools.svg?yr9e7c#cptools') format('svg');
   font-weight: normal;
   font-style: normal;
 }
@@ -24,6 +24,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.cptools-folder-no-color:before {
+  content: "\e900";
+}
 .cptools-slide:before {
   content: "\e902";
 }
@@ -67,8 +70,11 @@
   content: "\e90f";
 }
 .cptools-template:before {
-  content: "\e900";
+  content: "\e901";
 }
 .cptools-new-template:before {
-  content: "\e901";
+  content: "\e910";
+}
+.cptools-palette:before {
+  content: "\e911";
 }

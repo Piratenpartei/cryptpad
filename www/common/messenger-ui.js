@@ -197,6 +197,11 @@ define([
         var getChat = function (id) {
             return $messages.find(dataQuery(id));
         };
+        
+        var scrollChatToBottom = function () {
+            var $messagebox = $('.cp-app-contacts-messages');
+            $messagebox.scrollTop($messagebox[0].scrollHeight);
+        };
 
         var normalizeLabels = function ($messagebox) {
             $messagebox.find('div.cp-app-contacts-message').toArray().reduce(function (a, b) {
@@ -286,13 +291,12 @@ define([
                 UI.confirm(Messages.contacts_confirmRemoveHistory, function (yes) {
                     if (!yes) { return; }
 
-                    sframeChan.query('Q_CLEAR_OWNED_CHANNEL', id, function (e) {
+                    execCommand('CLEAR_OWNED_CHANNEL', id, function (e) {
                         if (e) {
                             console.error(e);
                             UI.alert(Messages.contacts_removeHistoryServerError);
                             return;
                         }
-                        clearChannel(id);
                     });
                 });
             });
@@ -364,10 +368,7 @@ define([
                     input.value = '';
                     sending = false;
                     debug('sent successfully');
-                    var $messagebox = $(messages);
-
-                    var height = $messagebox[0].scrollHeight;
-                    $messagebox.scrollTop(height);
+                    scrollChatToBottom();
                 });
             };
 
@@ -548,7 +549,7 @@ define([
         };
 
         var isBottomedOut = function ($elem) {
-            return ($elem[0].scrollHeight - $elem.scrollTop() === $elem.outerHeight());
+            return ($elem[0].scrollHeight - $elem.scrollTop() === $elem[0].clientHeight);
         };
 
         var onMessage = function (message) {
@@ -584,7 +585,7 @@ define([
             $messagebox.append(el_message);
 
             if (shouldScroll) {
-                $messagebox.scrollTop($messagebox.outerHeight());
+                scrollChatToBottom();
             }
             normalizeLabels($messagebox);
             reorderRooms();
@@ -616,8 +617,10 @@ define([
         };
         var onLeave = function (obj) {
             var channel = obj.id;
+            var chan = state.channels[channel];
             var data = obj.info;
-            if (contactsData[data.curvePublic]) {
+            // XXX Teams: if someone leaves a room, don't remove their data if they're also a friend
+            if (contactsData[data.curvePublic] && !(chan && chan.isFriendChat)) {
                 delete contactsData[data.curvePublic];
             }
             updateStatus(channel);

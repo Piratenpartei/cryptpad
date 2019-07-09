@@ -66,7 +66,7 @@ define([
             }
             broadcast([clientId], "UPDATE_METADATA");
             if (Array.isArray(path) && path[0] === 'profile' && store.messenger) {
-                store.messenger.updateMyData();
+                Messaging.updateMyData(store);
             }
             onSync(cb);
         };
@@ -83,6 +83,20 @@ define([
                 }
             }
             cb({});
+        };
+
+        Store.restoreSharedFolder = function (clientId, data, cb) {
+            if (!data.sfId || !data.drive) { return void cb({error:'EINVAL'}); }
+            if (store.sharedFolders[data.sfId]) {
+                Object.keys(data.drive).forEach(function (k) {
+                    store.sharedFolders[data.sfId].proxy[k] = data.drive[k];
+                });
+                Object.keys(store.sharedFolders[data.sfId].proxy).forEach(function (k) {
+                    if (data.drive[k]) { return; }
+                    delete store.sharedFolders[data.sfId].proxy[k];
+                });
+            }
+            onSync(cb);
         };
 
         Store.hasSigningKeys = function () {
@@ -326,15 +340,6 @@ define([
                         account.plan = obj.plan;
                         account.note = obj.note;
                         cb(obj);
-                    });
-
-                    arePinsSynced(function (err, yes) {
-                        if (!yes) {
-                            resetPins(function (err) {
-                                if (err) { return console.error(err); }
-                                console.log('RESET DONE');
-                            });
-                        }
                     });
                 });
             });
@@ -644,7 +649,7 @@ define([
             }
             store.proxy[Constants.displayNameKey] = value;
             broadcast([clientId], "UPDATE_METADATA");
-            if (store.messenger) { store.messenger.updateMyData(); }
+            Messaging.updateMyData(store);
             onSync(cb);
         };
 
@@ -1441,6 +1446,30 @@ define([
         };
         registerProxyEvents = function (proxy, fId) {
             proxy.on('change', [], function (o, n, p) {
+                if (fId) {
+                    // Pin the new pads
+                    if (p[0] === UserObject.FILES_DATA && typeof(n) === "object" && n.channel && !n.owners) {
+                        var toPin = [n.channel];
+                        // Also pin the onlyoffice channels if they exist
+                        if (n.rtChannel) { toPin.push(n.rtChannel); }
+                        if (n.lastVersion) { toPin.push(n.lastVersion); }
+                        Store.pinPads(null, toPin, function (obj) { console.error(obj); });
+                    }
+                    // Unpin the deleted pads (deleted <=> changed to undefined)
+                    if (p[0] === UserObject.FILES_DATA && typeof(o) === "object" && o.channel && !n) {
+                        var toUnpin = [o.channel];
+                        var c = store.manager.findChannel(o.channel);
+                        var exists = c.some(function (data) {
+                            return data.fId !== fId;
+                        });
+                        if (!exists) { // Unpin
+                            // Also unpin the onlyoffice channels if they exist
+                            if (o.rtChannel) { toUnpin.push(o.rtChannel); }
+                            if (o.lastVersion) { toUnpin.push(o.lastVersion); }
+                            Store.unpinPads(null, toUnpin, function (obj) { console.error(obj); });
+                        }
+                    }
+                }
                 sendDriveEvent('DRIVE_CHANGE', {
                     id: fId,
                     old: o,
@@ -1622,6 +1651,7 @@ define([
             };
             if (!proxy.settings) { proxy.settings = {}; }
             var manager = store.manager = ProxyManager.create(proxy.drive, {
+                onSync: onSync,
                 edPublic: proxy.edPublic,
                 pin: pin,
                 unpin: unpin,
@@ -1653,7 +1683,7 @@ define([
                         state: (2 + (version / 10)),
                         progress: progress
                     });
-                });
+                }, store);
             }).nThen(function (waitFor) {
                 postMessage(clientId, 'LOADING_DRIVE', {
                     state: 3
@@ -1666,6 +1696,15 @@ define([
                 loadUniversal(Profile, 'profile', waitFor);
                 cleanFriendRequests();
             }).nThen(function () {
+                arePinsSynced(function (err, yes) {
+                    if (!yes) {
+                        resetPins(function (err) {
+                            if (err) { return console.error(err); }
+                            console.log('RESET DONE');
+                        });
+                    }
+                });
+
                 var requestLogin = function () {
                     broadcast([], "REQUEST_LOGIN");
                 };
