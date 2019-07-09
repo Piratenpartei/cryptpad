@@ -167,6 +167,30 @@ module.exports = {
      */
     defaultStorageLimit: 20 * 1024 * 1024,
 
+    /*  CryptPad can be configured to remove inactive data which has not been pinned.
+     *  Deletion of data is always risky and as an operator you have the choice to
+     *  archive data instead of deleting it outright. Set this value to true if
+     *  you want your server to archive files and false if you want to keep using
+     *  the old behaviour of simply removing files.
+     *
+     *  WARNING: this is not implemented universally, so at the moment this will
+     *  only apply to the removal of 'channels' due to inactivity.
+     */
+    retainData: true,
+
+    /*  As described above, CryptPad offers the ability to archive some data
+     *  instead of deleting it outright. This archived data still takes up space
+     *  and so you'll probably still want to remove these files after a brief period.
+     *  The intent with this feature is to provide a safety net in case of accidental
+     *  deletion. Set this value to the number of days you'd like to retain
+     *  archived data before it's removed permanently.
+     *
+     *  If 'retainData' is set to false, there will never be any archived data
+     *  to remove.
+     */
+    archiveRetentionTime: 15,
+
+
     adminKeys: [
     "https://cryptpad.piratenpartei.de/user/#/1/promasu/2S+uYgBP-FflH9XhpZM+uTIAAe3NY593DELdvRypdzI=",
     "https://cryptpad.piratenpartei.de/user/#/1/derborys/MMY96qi7G1eJi3iyyM4uqGRnKZDkD27X1vPBe9-5b7Q=",
@@ -315,6 +339,8 @@ module.exports = {
         a custom location, change the path below:
     */
     blockPath: './block',
+
+    archivePath: './archive',
 
     /*
      *  By default, CryptPad also contacts our accounts server once a day to check for changes in
