@@ -319,6 +319,12 @@ module.exports = {
             limit: 200 * 1024 * 1024,
             plan: 'bzba',
             note: 'BzBA'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/detlef netter/up5NBB+Sr4UUFOuWujYt3O3YwELwVS3ruQRSBOTghps=": {
+            limit: 500 * 1024 * 1024,
+            plan: 'buvo',
+            note: 'BuVo'
         }
 
     },
