@@ -198,6 +198,8 @@ module.exports = {
     "https://cryptpad.piratenpartei.de/user/#/1/janrei/kD61Do0kYuFUpPW+6sSOdvGgWDjHzkiseP0SfPM0k+k=",
     ],
 
+    supportMailboxPublicKey: "7dIMBXO1J3Xby5glWMjoEE0h5byuS+m9z3/gmJ9FiA8=",
+
     /*
      *  CryptPad allows administrators to give custom limits to their friends.
      *  add an entry for each friend, identified by their user id,
