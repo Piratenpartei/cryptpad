@@ -12,7 +12,7 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.disableUserlistNotifications = true;
     config.disableCrowdfundingMessages = true;
     config.hideLoadingScreenTips = true;
-    config.availablePadTypes = ['drive', 'code', 'pad', 'slide', 'file', 'todo', 'sheet', 'contacts'];
+    config.availablePadTypes = ['drive', 'code', 'pad', 'slide', 'file', 'todo', 'oodoc', 'sheet', 'contacts'];
     config.registeredOnlyTypes = ['contacts',];
     config.availableLanguages = ['de', 'en'];
     return AppConfig;
