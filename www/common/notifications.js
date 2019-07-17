@@ -8,68 +8,97 @@ define([
 
     var handlers = {};
 
+    var defaultDismiss = function (common, data) {
+        return function (e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            common.mailbox.dismiss(data, function (err) {
+                if (err) { return void console.error(err); }
+            });
+        };
+    };
+
     // Friend request
 
-    handlers['FRIEND_REQUEST'] = function (common, data, el) {
+    handlers['FRIEND_REQUEST'] = function (common, data) {
         var content = data.content;
         var msg = content.msg;
+
+        // Display the notification
+        content.getFormatText = function () {
+            return Messages._getKey('friendRequest_notification', [msg.content.displayName || Messages.anonymous]);
+        };
 
         // Check authenticity
         if (msg.author !== msg.content.curvePublic) { return; }
 
-        common.addFriendRequest(data);
-
-        // Display the notification
-        $(el).find('.cp-notification-content p')
-            .html(Messages._getKey('friendRequest_notification', [msg.content.displayName || Messages.anonymous]));
-        $(el).find('.cp-notification-content').addClass("cp-clickable")
-            .click(function () {
+        // if not archived, add handlers
+        if (!content.archived) {
+            content.handler = function () {
                 UIElements.displayFriendRequestModal(common, data);
-            });
+            };
+            common.addFriendRequest(data);
+        }
     };
 
-    handlers['FRIEND_REQUEST_ACCEPTED'] = function (common, data, el) {
+    handlers['FRIEND_REQUEST_ACCEPTED'] = function (common, data) {
         var content = data.content;
         var msg = content.msg;
-        $(el).find('.cp-notification-content p')
-            .html(Messages._getKey('friendRequest_accepted', [msg.content.name || Messages.anonymous]));
-        $(el).find('.cp-notification-dismiss').css('display', 'flex');
+        content.getFormatText = function () {
+            return Messages._getKey('friendRequest_accepted', [msg.content.name || Messages.anonymous]);
+        };
+        if (!content.archived) {
+            content.dismissHandler = defaultDismiss(common, data);
+        }
     };
 
-    handlers['FRIEND_REQUEST_DECLINED'] = function (common, data, el) {
+    handlers['FRIEND_REQUEST_DECLINED'] = function (common, data) {
         var content = data.content;
         var msg = content.msg;
-        $(el).find('.cp-notification-content p')
-            .html(Messages._getKey('friendRequest_declined', [msg.content.name || Messages.anonymous]));
-        $(el).find('.cp-notification-dismiss').css('display', 'flex');
+        content.getFormatText = function () {
+            return Messages._getKey('friendRequest_declined', [msg.content.name || Messages.anonymous]);
+        };
+        if (!content.archived) {
+            content.dismissHandler = defaultDismiss(common, data);
+        }
     };
 
     // Share pad
 
-    handlers['SHARE_PAD'] = function (common, data, el) {
+    handlers['SHARE_PAD'] = function (common, data) {
         var content = data.content;
         var msg = content.msg;
         var type = Hash.parsePadUrl(msg.content.href).type;
         var key = type === 'drive' ? 'notification_folderShared' :
                     (type === 'file' ? 'notification_fileShared' :
-                      'notification_padShared');
-        $(el).find('.cp-notification-content p')
-            .html(Messages._getKey(key, [msg.content.name || Messages.anonymous, msg.content.title]));
-        $(el).find('.cp-notification-content').addClass("cp-clickable")
-            .click(function () {
-                common.openURL(msg.content.href);
-            });
-        $(el).find('.cp-notification-dismiss').css('display', 'flex');
+                    'notification_padShared');
+        content.getFormatText = function () {
+            return Messages._getKey(key, [msg.content.name || Messages.anonymous, msg.content.title]);
+        };
+        content.handler = function () {
+            var todo = function () { common.openURL(msg.content.href); };
+            if (!msg.content.password) { return void todo(); }
+            common.getSframeChannel().query('Q_SESSIONSTORAGE_PUT', {
+                key: 'newPadPassword',
+                value: msg.content.password
+            }, todo);
+        };
+        if (!content.archived) {
+            content.dismissHandler = defaultDismiss(common, data);
+        }
     };
 
     return {
-        add: function (common, data, el) {
+        add: function (common, data) {
             var type = data.content.msg.type;
 
             if (handlers[type]) {
-                handlers[type](common, data, el);
-            } else {
-                $(el).find('.cp-notification-dismiss').css('display', 'flex');
+                handlers[type](common, data);
+                // add getters to access simply some informations
+                data.content.isClickable = typeof data.content.handler === "function";
+                data.content.isDismissible = typeof data.content.dismissHandler === "function";
             }
         },
         remove: function (common, data) {

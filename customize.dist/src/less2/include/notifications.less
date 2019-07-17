@@ -14,6 +14,7 @@
             display: flex;
             .cp-notification-content {
                 flex: 1;
+                align-items: stretch;
                 min-width: 0;
                 p {
                     word-break: break-word;
@@ -28,14 +29,27 @@
             .cp-notification-dismiss {
                 color: black;
                 width: 25px;
-                height: 100%;
-                display: none;
+                display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
                 &:hover {
                     background-color: rgba(0,0,0,0.1);
                 }
+            }
+        }
+    }
+    hr {
+        margin: 0px !important;
+    }
+    .cp-notifications-gotoapp {
+        p {
+            padding: 10px 0 !important;
+            text-align: center !important;
+            font-weight: bold;
+            cursor: pointer;
+            &:hover {
+                background-color: rgba(0,0,0,0.1);
             }
         }
     }

@@ -534,8 +534,11 @@ MessengerUI, Messages) {
             hidden: true
         });
         $shareBlock.click(function () {
+            var title = (config.title && config.title.getTitle && config.title.getTitle())
+                        || (config.title && config.title.defaultName)
+                        || "";
             Common.getSframeChannel().event('EV_SHARE_OPEN', {
-                title: Common.getMetadataMgr().getMetadata().title
+                title: title
             });
         });
 
@@ -559,7 +562,10 @@ MessengerUI, Messages) {
             file: true
         });
         $shareBlock.click(function () {
+            var title = (config.title && config.title.getTitle && config.title.getTitle())
+                        || "";
             Common.getSframeChannel().event('EV_SHARE_OPEN', {
+                title: title,
                 file: true
             });
         });
@@ -724,7 +730,7 @@ MessengerUI, Messages) {
     };
 
     var createPageTitle = function (toolbar, config) {
-        if (config.title || !config.pageTitle) { return; }
+        if (!config.pageTitle) { return; }
         var $titleContainer = $('<span>', {
             'class': TITLE_CLS
         }).appendTo(toolbar.$top);
@@ -832,11 +838,17 @@ MessengerUI, Messages) {
         return $spin;
     };
 
-    var createLimit = function (toolbar) {
+    var createLimit = function (toolbar, config) {
         var $limitIcon = $('<span>', {'class': 'fa fa-exclamation-triangle'});
         var $limit = toolbar.$userAdmin.find('.'+LIMIT_CLS).attr({
             'title': Messages.pinLimitReached
         }).append($limitIcon).hide();
+
+        var priv = config.metadataMgr.getPrivateData();
+        var origin = priv.origin;
+        var l = document.createElement("a");
+        l.href = origin;
+
         var todo = function (e, overLimit) {
             if (e) { return void console.error("Unable to get the pinned usage", e); }
             if (overLimit) {
@@ -845,7 +857,7 @@ MessengerUI, Messages) {
                     key = 'pinLimitReachedAlertNoAccounts';
                 }
                 $limit.show().click(function () {
-                    UI.alert(Messages._getKey(key, [encodeURIComponent(window.location.hostname)]), null, true);
+                    UI.alert(Messages._getKey(key, [encodeURIComponent(l.hostname)]), null, true);
                 });
             }
         };
@@ -944,10 +956,18 @@ MessengerUI, Messages) {
 
     var createNotifications = function (toolbar, config) {
         var $notif = toolbar.$top.find('.'+NOTIFICATIONS_CLS).show();
+        var openNotifsApp = h('div.cp-notifications-gotoapp', h('p', Messages.openNotificationsApp || "Open notifications App"));
+        $(openNotifsApp).click(function () {
+            Common.openURL("/notifications/");
+        });
         var div = h('div.cp-notifications-container', [
             h('div.cp-notifications-empty', Messages.notifications_empty)
         ]);
         var pads_options = [div];
+        if (Common.isLoggedIn()) {
+            pads_options.unshift(h("hr"));
+            pads_options.unshift(openNotifsApp);
+        }
         var dropdownConfig = {
             text: '', // Button initial text
             options: pads_options, // Entries displayed in the menu
@@ -983,10 +1003,10 @@ MessengerUI, Messages) {
             $button.addClass('fa-bell');
         };
 
-        Common.mailbox.subscribe({
+        Common.mailbox.subscribe(['notifications'], {
             onMessage: function (data, el) {
                 if (el) {
-                    div.appendChild(el);
+                    $(div).prepend(el);
                 }
                 refresh();
             },
