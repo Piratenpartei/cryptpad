@@ -196,6 +196,7 @@ module.exports = {
     "https://cryptpad.piratenpartei.de/user/#/1/derborys/MMY96qi7G1eJi3iyyM4uqGRnKZDkD27X1vPBe9-5b7Q=",
     "https://cryptpad.piratenpartei.de/user/#/1/loki/wUkBAtszF+nKsYHLwZMdoZRkJCf6+TVZoX1qz08fO3s=",
     "https://cryptpad.piratenpartei.de/user/#/1/janrei/kD61Do0kYuFUpPW+6sSOdvGgWDjHzkiseP0SfPM0k+k=",
+    "https://cryptpad.piratenpartei.de/user/#/1/steffi/6x8uIP5e0C+heWyF9a8y8Up-fJpyN-Ww1zBUfAbnOhw="
     ],
 
     supportMailboxPublicKey: "7dIMBXO1J3Xby5glWMjoEE0h5byuS+m9z3/gmJ9FiA8=",
