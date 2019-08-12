@@ -334,6 +334,12 @@ module.exports = {
             limit: 500 * 1024 * 1024,
             plan: 'buvo',
             note: 'BuVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/dogas/XG7mg2+ZcH+chwyhJxAwpgKcO4vfQiMCx-XQMGvJVC4=": {
+            limit: 200 * 1024 * 1024,
+            plan: 'lavo',
+            note: 'LaVo'
         }
 
     },
