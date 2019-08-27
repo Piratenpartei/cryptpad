@@ -146,6 +146,7 @@ module.exports = {
      */
     allowSubscriptions: false,
     removeDonateButton: true,
+    noSubscriptionButton: true,
 
     /*  Sales coming from your server will be identified by your domain
      *
@@ -337,6 +338,12 @@ module.exports = {
             limit: 200 * 1024 * 1024,
             plan: 'lavo',
             note: 'LaVo'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/herb_foxley/zZjquETluWYYqhlH6Xb3f1ha-y7aiEA4lMWTwW8wQCs=": {
+            limit: 200 * 1024 * 1024,
+            plan: 'mandate',
+            note: 'Mandatstraeger'
         }
 
     },
