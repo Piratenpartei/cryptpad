@@ -344,6 +344,12 @@ module.exports = {
             limit: 200 * 1024 * 1024,
             plan: 'mandate',
             note: 'Mandatstraeger'
+        },
+
+        "https://cryptpad.piratenpartei.de/user/#/1/Kerstin/+QyzG267GW5xj6HuCq+PqnDMKRWXoMg6t30CjrWX7K4=": {
+            limit: 100 * 1024 * 1024,
+            plan: 'asked',
+            note: 'Anfrage'
         }
 
     },
