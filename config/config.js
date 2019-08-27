@@ -117,10 +117,7 @@ module.exports = {
     /*  CryptPad supports verbose logging
      *  (false by default)
      */
-    verbose: true,
-
-    logPath: '/var/log/cryptpad',
-    logLevel: 'debug',
+    verbose: false,
 
     /*  Main pages
      *  add exceptions to the router so that we can access /privacy.html
@@ -143,7 +140,7 @@ module.exports = {
      *  B: disable accounts but display a donate button
      *  C: hide any reference to paid accounts or donation
      *
-     *  If you chose A then there's nothing to do.
+     *  If you chose A thein there's nothing to do.
      *  If you chose B, set 'allowSubscriptions' to false.
      *  If you chose C, set 'removeDonateButton' to true
      */
@@ -165,7 +162,7 @@ module.exports = {
      *    development. Running a public instance that provides a "better deal" than cryptpad.fr
      *    is effectively using the project against itself.
      */
-    defaultStorageLimit: 20 * 1024 * 1024,
+    defaultStorageLimit: 50 * 1024 * 1024,
 
     /*  CryptPad can be configured to remove inactive data which has not been pinned.
      *  Deletion of data is always risky and as an operator you have the choice to
