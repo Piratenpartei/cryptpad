@@ -648,7 +648,6 @@ define([
         data.href = parsed.getUrl({present: parsed.present});
 
         if (typeof (data.title) !== "string") { return cb('Missing title'); }
-        if (data.title.trim() === "") { data.title = Hash.getDefaultName(parsed); }
 
         if (common.initialPath) {
             if (!data.path) {
@@ -757,6 +756,7 @@ define([
     pad.onDisconnectEvent = Util.mkEvent();
     pad.onConnectEvent = Util.mkEvent();
     pad.onErrorEvent = Util.mkEvent();
+    pad.onMetadataEvent = Util.mkEvent();
 
     pad.requestAccess = function (data, cb) {
         postMessage("REQUEST_PAD_ACCESS", data, cb);
@@ -765,11 +765,14 @@ define([
         postMessage("GIVE_PAD_ACCESS", data, cb);
     };
 
+    common.setPadMetadata = function (data, cb) {
+        postMessage('SET_PAD_METADATA', data, cb);
+    };
     common.getPadMetadata = function (data, cb) {
         postMessage('GET_PAD_METADATA', data, cb);
     };
 
-    common.changePadPassword = function (Crypt, href, newPassword, edPublic, cb) {
+    common.changePadPassword = function (Crypt, Crypto, href, newPassword, edPublic, cb) {
         if (!href) { return void cb({ error: 'EINVAL_HREF' }); }
         var parsed = Hash.parsePadUrl(href);
         if (!parsed.hash) { return void cb({ error: 'EINVAL_HREF' }); }
@@ -777,6 +780,8 @@ define([
         var warning = false;
         var newHash, newRoHref;
         var oldChannel;
+        var oldSecret;
+        var oldMetadata;
         var newSecret;
 
         if (parsed.hashData.version >= 2) {
@@ -793,25 +798,61 @@ define([
 
         var optsGet = {};
         var optsPut = {
-            password: newPassword
+            password: newPassword,
+            metadata: {}
         };
+
+
         Nthen(function (waitFor) {
             if (parsed.hashData && parsed.hashData.password) {
                 common.getPadAttribute('password', waitFor(function (err, password) {
                     optsGet.password = password;
                 }), href);
             }
-            common.getPadAttribute('owners', waitFor(function (err, owners) {
-                if (!Array.isArray(owners) || owners.indexOf(edPublic) === -1) {
-                    // We're not an owner, we shouldn't be able to change the password!
-                    waitFor.abort();
-                    return void cb({ error: 'EPERM' });
+        }).nThen(function (waitFor) {
+            oldSecret = Hash.getSecrets(parsed.type, parsed.hash, optsGet.password);
+            oldChannel = oldSecret.channel;
+            common.getPadMetadata({channel: oldChannel}, waitFor(function (metadata) {
+                oldMetadata = metadata;
+            }));
+        }).nThen(function (waitFor) {
+            // Get owners, mailbox and expiration time
+
+            var owners = oldMetadata.owners;
+            if (!Array.isArray(owners) || owners.indexOf(edPublic) === -1) {
+                // We're not an owner, we shouldn't be able to change the password!
+                waitFor.abort();
+                return void cb({ error: 'EPERM' });
+            }
+            optsPut.metadata.owners = owners;
+
+            var mailbox = oldMetadata.mailbox;
+            if (mailbox) {
+                // Create the encryptors to be able to decrypt and re-encrypt the mailboxes
+                var oldCrypto = Crypto.createEncryptor(oldSecret.keys);
+                var newCrypto = Crypto.createEncryptor(newSecret.keys);
+
+                var m;
+                if (typeof(mailbox) === "string") {
+                    try {
+                        m = newCrypto.encrypt(oldCrypto.decrypt(mailbox, true, true));
+                    } catch (e) {}
+                } else if (mailbox && typeof(mailbox) === "object") {
+                    m = {};
+                    Object.keys(mailbox).forEach(function (ed) {
+                        console.log(mailbox[ed]);
+                        try {
+                            m[ed] = newCrypto.encrypt(oldCrypto.decrypt(mailbox[ed], true, true));
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    });
                 }
-                optsPut.owners = owners;
-            }), href);
-            common.getPadAttribute('expire', waitFor(function (err, expire) {
-                optsPut.expire = (expire - (+new Date())) / 1000; // Lifetime in seconds
-            }), href);
+                optsPut.metadata.mailbox = m;
+            }
+
+            var expire = oldMetadata.expire;
+            optsPut.metadata.expire = (expire - (+new Date())) / 1000; // Lifetime in seconds
         }).nThen(function (waitFor) {
             Crypt.get(parsed.hash, waitFor(function (err, val) {
                 if (err) {
@@ -826,8 +867,6 @@ define([
                 }), optsPut);
             }), optsGet);
         }).nThen(function (waitFor) {
-            var secret = Hash.getSecrets(parsed.type, parsed.hash, optsGet.password);
-            oldChannel = secret.channel;
             pad.leavePad({
                 channel: oldChannel
             }, waitFor());
@@ -1198,6 +1237,7 @@ define([
         PAD_DISCONNECT: common.padRpc.onDisconnectEvent.fire,
         PAD_CONNECT: common.padRpc.onConnectEvent.fire,
         PAD_ERROR: common.padRpc.onErrorEvent.fire,
+        PAD_METADATA: common.padRpc.onMetadataEvent.fire,
         // Drive
         DRIVE_LOG: common.drive.onLog.fire,
         DRIVE_CHANGE: common.drive.onChange.fire,
@@ -1306,7 +1346,7 @@ define([
                     console.log(parsed);
                     return;
                 } else {
-                    console.log(parsed);
+                    //console.log(parsed);
                 }
                 Util.fetch(parsed.href, waitFor(function (err, arraybuffer) {
                     if (err) { return void console.log(err); }

@@ -1,6 +1,9 @@
 (function (window) {
-define([], function () {
-    var Util = window.CryptPad_Util = {};
+    var Util = {};
+
+    Util.tryParse = function (s) {
+        try { return JSON.parse(s); } catch (e) { return;}
+    };
 
     Util.mkAsync = function (f) {
         return function () {
@@ -219,13 +222,14 @@ define([], function () {
         return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
     };
 
+    Util.noop = function () {};
+
     /* for wrapping async functions such that they can only be called once */
-    Util.once = function (f) {
-        var called;
+    Util.once = function (f, g) {
         return function () {
-            if (called) { return; }
-            called = true;
+            if (!f) { return; }
             f.apply(this, Array.prototype.slice.call(arguments));
+            f = g;
         };
     };
 
@@ -349,6 +353,14 @@ define([], function () {
         return false;
     };
 
-    return Util;
-});
-}(self));
+    if (typeof(module) !== 'undefined' && module.exports) {
+        module.exports = Util;
+    } else if ((typeof(define) !== 'undefined' && define !== null) && (define.amd !== null)) {
+        define([], function () {
+            window.CryptPad_Util = Util;
+            return Util;
+        });
+    } else {
+        window.CryptPad_Util = Util;
+    }
+}(typeof(self) !== 'undefined'? self: this));

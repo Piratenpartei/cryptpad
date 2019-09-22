@@ -50,9 +50,10 @@ define([
                 '/common/outer/local-store.js',
                 '/customize/application_config.js',
                 '/common/test.js',
+                '/common/userObject.js',
             ], waitFor(function (_CpNfOuter, _Cryptpad, _Crypto, _Cryptget, _SFrameChannel,
             _FilePicker, _Share, _Messaging, _Notifier, _Hash, _Util, _Realtime,
-            _Constants, _Feedback, _LocalStore, _AppConfig, _Test) {
+            _Constants, _Feedback, _LocalStore, _AppConfig, _Test, _UserObject) {
                 CpNfOuter = _CpNfOuter;
                 Cryptpad = _Cryptpad;
                 Crypto = Utils.Crypto = _Crypto;
@@ -68,6 +69,7 @@ define([
                 Utils.Constants = _Constants;
                 Utils.Feedback = _Feedback;
                 Utils.LocalStore = _LocalStore;
+                Utils.UserObject = _UserObject;
                 AppConfig = _AppConfig;
                 Test = _Test;
 
@@ -271,7 +273,7 @@ define([
             Utils.crypto = Utils.Crypto.createEncryptor(Utils.secret.keys);
             var parsed = Utils.Hash.parsePadUrl(window.location.href);
             if (!parsed.type) { throw new Error(); }
-            var defaultTitle = Utils.Hash.getDefaultName(parsed);
+            var defaultTitle = Utils.UserObject.getDefaultName(parsed);
             var edPublic, curvePublic, notifications, isTemplate;
             var forceCreationScreen = cfg.useCreationScreen &&
                                       sessionStorage[Utils.Constants.displayPadCreationScreen];
@@ -412,8 +414,12 @@ define([
                     });
                 });
 
-                Cryptpad.mailbox.onEvent.reg(function (data) {
-                    sframeChan.event('EV_MAILBOX_EVENT', data);
+                Cryptpad.mailbox.onEvent.reg(function (data, cb) {
+                    sframeChan.query('EV_MAILBOX_EVENT', data, function (err, obj) {
+                        if (!cb) { return; }
+                        if (err) { return void cb({error: err}); }
+                        cb(obj);
+                    });
                 });
                 sframeChan.on('Q_MAILBOX_COMMAND', function (data, cb) {
                     Cryptpad.mailbox.execCommand(data, cb);
@@ -474,6 +480,43 @@ define([
                 Cryptpad.getPadAttribute('title', function (err, data) {
                     cb (!err && typeof (data) === "string");
                 });
+            });
+
+            sframeChan.on('Q_ACCEPT_OWNERSHIP', function (data, cb) {
+                var _data = {
+                    password: data.password,
+                    href: data.href,
+                    channel: data.channel,
+                    title: data.title,
+                    owners: data.metadata.owners,
+                    expire: data.metadata.expire,
+                    forceSave: true
+                };
+                Cryptpad.setPadTitle(_data, function (err) {
+                    cb({error: err});
+                });
+
+                // Also add your mailbox to the metadata object
+                var padParsed = Utils.Hash.parsePadUrl(data.href);
+                var padSecret = Utils.Hash.getSecrets(padParsed.type, padParsed.hash, data.password);
+                var padCrypto = Utils.Crypto.createEncryptor(padSecret.keys);
+                try {
+                    var value = {};
+                    value[edPublic] = padCrypto.encrypt(JSON.stringify({
+                        notifications: notifications,
+                        curvePublic: curvePublic
+                    }));
+                    var msg = {
+                        channel: data.channel,
+                        command: 'ADD_MAILBOX',
+                        value: value
+                    };
+                    Cryptpad.setPadMetadata(msg, function (res) {
+                        if (res.error) { console.error(res.error); }
+                    });
+                } catch (err) {
+                    return void console.error(err);
+                }
             });
 
             sframeChan.on('Q_IMPORT_MEDIATAG', function (obj, cb) {
@@ -872,7 +915,7 @@ define([
 
             sframeChan.on('Q_PAD_PASSWORD_CHANGE', function (data, cb) {
                 var href = data.href || window.location.href;
-                Cryptpad.changePadPassword(Cryptget, href, data.password, edPublic, cb);
+                Cryptpad.changePadPassword(Cryptget, Crypto, href, data.password, edPublic, cb);
             });
 
             sframeChan.on('Q_CHANGE_USER_PASSWORD', function (data, cb) {
@@ -971,11 +1014,13 @@ define([
             sframeChan.on('EV_GIVE_ACCESS', function (data, cb) {
                 Cryptpad.padRpc.giveAccess(data, cb);
             });
-            sframeChan.on('Q_REQUEST_ACCESS', function (data, cb) {
+            // REQUEST_ACCESS is used both to check IF we can contact an owner (send === false)
+            // AND also to send the request if we want (send === true)
+            sframeChan.on('Q_REQUEST_ACCESS', function (send, cb) {
                 if (readOnly && hashes.editHash) {
                     return void cb({error: 'ALREADYKNOWN'});
                 }
-                var owner;
+                var owner, owners;
                 var crypto = Crypto.createEncryptor(secret.keys);
                 nThen(function (waitFor) {
                     // Try to get the owner's mailbox from the pad metadata first.
@@ -986,9 +1031,20 @@ define([
                     }, waitFor(function (obj) {
                         obj = obj || {};
                         if (obj.error) { return; }
-                        if (obj.mailbox) {
+
+                        owners = obj.owners;
+
+                        var mailbox;
+                        // Get the first available mailbox (the field can be an string or an object)
+                        // TODO maybe we should send the request to all the owners?
+                        if (typeof (obj.mailbox) === "string") {
+                            mailbox = obj.mailbox;
+                        } else if (obj.mailbox && obj.owners && obj.owners.length) {
+                            mailbox = obj.mailbox[obj.owners[0]];
+                        }
+                        if (mailbox) {
                             try {
-                                var dataStr = crypto.decrypt(obj.mailbox, true, true);
+                                var dataStr = crypto.decrypt(mailbox, true, true);
                                 var data = JSON.parse(dataStr);
                                 if (!data.notifications || !data.curvePublic) { return; }
                                 owner = data;
@@ -996,12 +1052,30 @@ define([
                         }
                     }));
                 }).nThen(function () {
+                    // If we are just checking (send === false) and there is a mailbox field, cb state true
+                    // If there is no mailbox, we'll have to check if an owner is a friend in the worker
+                    if (owner && !send) {
+                        return void cb({state: true});
+                    }
                     Cryptpad.padRpc.requestAccess({
-                        send: data,
+                        send: send,
                         channel: secret.channel,
-                        owner: owner
+                        owner: owner,
+                        owners: owners
                     }, cb);
                 });
+            });
+
+            sframeChan.on('Q_GET_PAD_METADATA', function (data, cb) {
+                if (!data || !data.channel) {
+                    data = {
+                        channel: secret.channel
+                    };
+                }
+                Cryptpad.getPadMetadata(data, cb);
+            });
+            sframeChan.on('Q_SET_PAD_METADATA', function (data, cb) {
+                Cryptpad.setPadMetadata(data, cb);
             });
 
             if (cfg.messaging) {
@@ -1119,7 +1193,7 @@ define([
 
                 // Update metadata values and send new metadata inside
                 parsed = Utils.Hash.parsePadUrl(window.location.href);
-                defaultTitle = Utils.Hash.getDefaultName(parsed);
+                defaultTitle = Utils.UserObject.getDefaultName(parsed);
                 hashes = Utils.Hash.getHashes(secret);
                 readOnly = false;
                 updateMeta();
@@ -1129,7 +1203,8 @@ define([
                 };
                 if (data.owned) {
                     rtConfig.metadata.owners = [edPublic];
-                    rtConfig.metadata.mailbox = Utils.crypto.encrypt(JSON.stringify({
+                    rtConfig.metadata.mailbox = {};
+                    rtConfig.metadata.mailbox[edPublic] = Utils.crypto.encrypt(JSON.stringify({
                         notifications: notifications,
                         curvePublic: curvePublic
                     }));

@@ -422,12 +422,12 @@ define([
         return JSON.parse(JSON.stringify(friendRequests));
     };
 
-    funcs.getFriends = function () {
+    funcs.getFriends = function (meIncluded) {
         var priv = ctx.metadataMgr.getPrivateData();
         var friends = priv.friends;
         var goodFriends = {};
         Object.keys(friends).forEach(function (curve) {
-            if (curve.length !== 44) { return; }
+            if (curve.length !== 44 && !meIncluded) { return; }
             var data = friends[curve];
             if (!data.notifications) { return; }
             goodFriends[curve] = friends[curve];
@@ -465,6 +465,13 @@ define([
             if (obj.error) { return void cb(obj.error); }
             cb(null, obj.data);
         }, { timeout: 60000 });
+    };
+
+    funcs.getPadMetadata = function (data, cb) {
+        ctx.sframeChan.query('Q_GET_PAD_METADATA', data, function (err, val) {
+            if (err || (val && val.error)) { return void cb({error: err || val.error}); }
+            cb(val);
+        });
     };
 
     funcs.gotoURL = function (url) { ctx.sframeChan.event('EV_GOTO_URL', url); };

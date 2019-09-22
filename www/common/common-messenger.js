@@ -1,6 +1,5 @@
 define([
     '/bower_components/chainpad-crypto/crypto.js',
-    '/common/curve.js',
     '/common/common-hash.js',
     '/common/common-util.js',
     '/common/common-realtime.js',
@@ -8,8 +7,10 @@ define([
     '/customize/messages.js',
 
     '/bower_components/nthen/index.js',
-], function (Crypto, Curve, Hash, Util, Realtime, Constants, Messages, nThen) {
+], function (Crypto, Hash, Util, Realtime, Constants, Messages, nThen) {
     'use strict';
+    var Curve = Crypto.Curve;
+
     var Msg = {
         inputs: [],
     };
@@ -229,6 +230,11 @@ define([
             });
         };
 
+        messenger.onFriendUpdate = function (curve) {
+            var friend = getFriend(proxy, curve);
+            checkFriendData(curve, friend, friend.channel);
+        };
+
         // Id message allows us to map a netfluxId with a public curve key
         var onIdMessage = function (msg, sender) {
             var channel, parsed0;
@@ -373,12 +379,14 @@ define([
                  || mySyncData.profile !== myData.profile
                  || mySyncData.avatar !== myData.avatar) {
                 delete myData.channel;
-                Object.keys(channels).forEach(function (chan) {
-                    var channel = channels[chan];
+                Object.keys(friends).forEach(function (curve) {
+                    var friend = friends[curve];
+                    var chan = friend.channel;
+                    if (friend.notifications) { return; }
+                    if (!chan) { return; }
 
-                    if (!channel) {
-                        return void console.error('NO_SUCH_CHANNEL');
-                    }
+                    var channel = channels[chan];
+                    if (!channel) { return; }
                     if (channel.readOnly) { return; }
 
                     var msg = [Types.update, myData.curvePublic, +new Date(), myData];
@@ -396,7 +404,6 @@ define([
                     info: myData,
                     types: ['displayName', 'profile', 'avatar'],
                 });
-                friends.me = myData;
             }
         };
 
@@ -721,6 +728,15 @@ define([
             network.on('reconnect', function () {
                 if (channel && channel.stopped) { return; }
                 if (!channels[data.channel]) { return; }
+
+                if (!joining[data.channel]) {
+                    joining[data.channel] = function () {
+                        console.log("reconnected to %s", data.channel);
+                    };
+                } else {
+                    console.error("Reconnected to a chat channel (%s) which was not fully connected", data.channel);
+                }
+
                 network.join(data.channel).then(onOpen, function (err) {
                     console.error(err);
                 });

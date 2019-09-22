@@ -507,7 +507,7 @@ define([
                 roHref: roHref,
                 atime: now,
                 ctime: now,
-                title: title || Hash.getDefaultName(Hash.parsePadUrl(href)),
+                title: title || UserObject.getDefaultName(Hash.parsePadUrl(href)),
             };
         };
 
@@ -642,8 +642,13 @@ define([
                         href: href,
                         channel: channel,
                         title: data.driveReadmeTitle,
+                        owners: [ store.proxy.edPublic ],
                     };
                     Store.addPad(clientId, fileData, cb);
+                }, {
+                    metadata: {
+                        owners: [ store.proxy.edPublic ],
+                    },
                 });
             });
         };
@@ -805,6 +810,8 @@ define([
             var p = Hash.parsePadUrl(href);
             var h = p.hashData;
 
+            if (title.trim() === "") { title = UserObject.getDefaultName(p); }
+
             if (AppConfig.disableAnonymousStore && !store.loggedIn) { return void cb(); }
             if (p.type === "debug") { return void cb(); }
 
@@ -821,6 +828,9 @@ define([
             var expire;
             if (channelData && channelData.wc && channel === channelData.wc.id) {
                 expire = +channelData.data.expire || undefined;
+            }
+            if (data.expire) {
+                expire = data.expire;
             }
 
             var datas = store.manager.findChannel(channel);
@@ -1204,6 +1214,21 @@ define([
                         channel.bcast("PAD_DISCONNECT");
                     }
                 },
+                onMetadataUpdate: function (metadata) {
+                    channel.data = metadata || {};
+                    var allData = store.manager.findChannel(data.channel);
+                    allData.forEach(function (obj) {
+                        obj.data.owners = metadata.owners;
+                        obj.data.atime = +new Date();
+                        if (metadata.expire) {
+                            obj.data.expire = +metadata.expire;
+                        }
+                    });
+                    channel.bcast("PAD_METADATA", metadata);
+                    sendDriveEvent('DRIVE_CHANGE', {
+                        path: ['drive', UserObject.FILES_DATA]
+                    });
+                },
                 crypto: {
                     // The encryption and decryption is done in the outer window.
                     // This async-store only deals with already encrypted messages.
@@ -1268,32 +1293,15 @@ define([
         // data.send === true  ==> send the request
         Store.requestPadAccess = function (clientId, data, cb) {
             var owner = data.owner;
-            var channel = channels[data.channel];
-            if (!channel) { return void cb({error: 'ENOTFOUND'}); }
-            if (!data.send && channel && (!channel.data || !channel.data.channel)) {
-                var i = 0;
-                var it = setInterval(function () {
-                    if (channel.data && channel.data.channel) {
-                        clearInterval(it);
-                        Store.requestPadAccess(clientId, data, cb);
-                        return;
-                    }
-                    if (i >= 300) { // One minute timeout
-                        clearInterval(it);
-                        return void cb({error: 'ETIMEOUT'});
-                    }
-                    i++;
-                }, 200);
-                return;
-            }
+            var owners = data.owners;
 
             // If the owner was not is the pad metadata, check if it is a friend.
             // We'll contact the first owner for whom we know the mailbox
-            var fData = channel.data || {};
-            if (!owner && fData.owners) {
+            if (!owner && Array.isArray(owners)) {
                 var friends = store.proxy.friends || {};
-                if (Object.keys(friends).length > 1) {
-                    fData.owners.some(function (edPublic) {
+                // If we have friends, check if an owner is one of them (with a mailbox)
+                if (Object.keys(friends).filter(function (curve) { return curve !== 'me'; }).length) {
+                    owners.some(function (edPublic) {
                         return Object.keys(friends).some(function (curve) {
                             if (curve === "me") { return; }
                             if (edPublic === friends[curve].edPublic &&
@@ -1361,27 +1369,37 @@ define([
             cb();
         };
 
+        // Fetch the latest version of the metadata on the server and return it.
+        // If the pad is stored in our drive, update the local values of "owners" and "expire"
         Store.getPadMetadata = function (clientId, data, cb) {
             if (!data.channel) { return void cb({ error: 'ENOTFOUND'}); }
-            var channel = channels[data.channel];
-            if (!channel) { return void cb({ error: 'ENOTFOUND' }); }
-            if (!channel.data || !channel.data.channel) {
-                var i = 0;
-                var it = setInterval(function () {
-                    if (channel.data && channel.data.channel) {
-                        clearInterval(it);
-                        Store.getPadMetadata(clientId, data, cb);
-                        return;
+            store.anon_rpc.send('GET_METADATA', data.channel, function (err, obj) {
+                if (err) { return void cb({error: err}); }
+                var metadata = (obj && obj[0]) || {};
+                cb(metadata);
+
+                // Update owners and expire time in the drive
+                var allData = store.manager.findChannel(data.channel);
+                allData.forEach(function (obj) {
+                    obj.data.atime = +new Date();
+                    obj.data.owners = metadata.owners;
+                    if (metadata.expire) {
+                        obj.data.expire = +metadata.expire;
                     }
-                    if (i >= 300) { // One minute timeout
-                        clearInterval(it);
-                        return void cb({error: 'ETIMEOUT'});
-                    }
-                    i++;
-                }, 200);
-                return;
-            }
-            cb(channel.data || {});
+                });
+                sendDriveEvent('DRIVE_CHANGE', {
+                    path: ['drive', UserObject.FILES_DATA]
+                });
+            });
+        };
+        Store.setPadMetadata = function (clientId, data, cb) {
+            if (!data.channel) { return void cb({ error: 'ENOTFOUND'}); }
+            if (!data.command) { return void cb({ error: 'EINVAL' }); }
+            store.rpc.setMetadata(data, function (err, res) {
+                if (err) { return void cb({ error: err }); }
+                if (!Array.isArray(res) || !res.length) { return void cb({}); }
+                cb(res[0]);
+            });
         };
 
         // GET_FULL_HISTORY from sframe-common-outer
@@ -1739,12 +1757,12 @@ define([
                     broadcast([], "UPDATE_METADATA");
                 },
                 pinPads: function (data, cb) { Store.pinPads(null, data, cb); },
-            }, waitFor, function (ev, data, clients) {
+            }, waitFor, function (ev, data, clients, cb) {
                 clients.forEach(function (cId) {
                     postMessage(cId, 'MAILBOX_EVENT', {
                         ev: ev,
                         data: data
-                    });
+                    }, cb);
                 });
             });
         };
@@ -1772,13 +1790,7 @@ define([
             // If we don't check now, Listmap will create an empty proxy if it no longer exists on
             // the server.
             nThen(function (waitFor) {
-                var edPublic = store.proxy.edPublic;
-                var checkExpired = Object.keys(shared).filter(function (fId) {
-                    var d = shared[fId];
-                    return (Array.isArray(d.owners) && d.owners.length &&
-                            (!edPublic || d.owners.indexOf(edPublic) === -1))
-                            || (d.expire && d.expire < (+new Date()));
-                }).map(function (fId) {
+                var checkExpired = Object.keys(shared).map(function (fId) {
                     return shared[fId].channel;
                 });
                 Store.getDeletedPads(null, {list: checkExpired}, waitFor(function (chans) {

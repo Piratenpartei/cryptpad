@@ -18,7 +18,8 @@ const nThen = require("nthen");
 const getFolderSize = require("get-folder-size");
 const Pins = require("./lib/pins");
 const Meta = require("./lib/metadata");
-
+const WriteQueue = require("./lib/write-queue");
+const BatchRead = require("./lib/batch-read");
 
 var RPC = module.exports;
 
@@ -231,6 +232,7 @@ var checkSignature = function (signedMsg, signature, publicKey) {
     return Nacl.sign.detached.verify(signedBuffer, signatureBuffer, pubBuffer);
 };
 
+const batchUserPins = BatchRead("LOAD_USER_PINS");
 var loadUserPins = function (Env, publicKey, cb) {
     var session = getSession(Env.Sessions, publicKey);
 
@@ -238,21 +240,23 @@ var loadUserPins = function (Env, publicKey, cb) {
         return cb(session.channels);
     }
 
-    var ref = {};
-    var lineHandler = Pins.createLineHandler(ref, function (label, data) {
-        Log.error(label, {
-            log: publicKey,
-            data: data,
+    batchUserPins(publicKey, cb, function (done) {
+        var ref = {};
+        var lineHandler = Pins.createLineHandler(ref, function (label, data) {
+            Log.error(label, {
+                log: publicKey,
+                data: data,
+            });
         });
-    });
 
-    // if channels aren't in memory. load them from disk
-    Env.pinStore.getMessages(publicKey, lineHandler, function () {
-        // no more messages
+        // if channels aren't in memory. load them from disk
+        Env.pinStore.getMessages(publicKey, lineHandler, function () {
+            // no more messages
 
-        // only put this into the cache if it completes
-        session.channels = ref.pins;
-        cb(ref.pins);
+            // only put this into the cache if it completes
+            session.channels = ref.pins;
+            done(ref.pins); // FIXME no error handling?
+        });
     });
 };
 
@@ -268,12 +272,12 @@ var getChannelList = function (Env, publicKey, cb) {
     });
 };
 
-var makeFilePath = function (root, id) {
+var makeFilePath = function (root, id) { // FIXME FILES
     if (typeof(id) !== 'string' || id.length <= 2) { return null; }
     return Path.join(root, id.slice(0, 2), id);
 };
 
-var getUploadSize = function (Env, channel, cb) {
+var getUploadSize = function (Env, channel, cb) { // FIXME FILES
     var paths = Env.paths;
     var path = makeFilePath(paths.blob, channel);
     if (!path) {
@@ -292,7 +296,6 @@ var getUploadSize = function (Env, channel, cb) {
 
 var getFileSize = function (Env, channel, cb) {
     if (!isValidId(channel)) { return void cb('INVALID_CHAN'); }
-
     if (channel.length === 32) {
         if (typeof(Env.msgStore.getChannelSize) !== 'function') {
             return cb('GET_CHANNEL_SIZE_UNSUPPORTED');
@@ -314,21 +317,97 @@ var getFileSize = function (Env, channel, cb) {
     });
 };
 
-
+const batchMetadata = BatchRead("GET_METADATA");
 var getMetadata = function (Env, channel, cb) {
     if (!isValidId(channel)) { return void cb('INVALID_CHAN'); }
+    if (channel.length !== 32) { return cb("INVALID_CHAN_LENGTH"); }
 
-    if (channel.length !== 32) { return cb("INVALID_CHAN"); }
+    batchMetadata(channel, cb, function (done) {
+        var ref = {};
+        var lineHandler = Meta.createLineHandler(ref, Log.error);
 
-    var ref = {};
-    var lineHandler = Meta.createLineHandler(ref, Log.error);
+        return void Env.msgStore.readChannelMetadata(channel, lineHandler, function (err) {
+            if (err) {
+                // stream errors?
+                return void done(err);
+            }
+            done(void 0, ref.meta);
+        });
+    });
+};
 
-    return void Env.msgStore.readChannelMetadata(channel, lineHandler, function (err) {
-        if (err) {
-            // stream errors?
-            return void cb(err);
-        }
-        cb(void 0, ref.meta);
+/* setMetadata
+    - write a new line to the metadata log if a valid command is provided
+    - data is an object: {
+        channel: channelId,
+        command: metadataCommand (string),
+        value: value
+    }
+*/
+var queueMetadata = WriteQueue();
+var setMetadata = function (Env, data, unsafeKey, cb) {
+    var channel = data.channel;
+    var command = data.command;
+    if (!channel || !isValidId(channel)) { return void cb ('INVALID_CHAN'); }
+    if (!command || typeof (command) !== 'string') { return void cb ('INVALID_COMMAND'); }
+    if (Meta.commands.indexOf(command) === -1) { return void('UNSUPPORTED_COMMAND'); }
+
+    queueMetadata(channel, function (next) {
+        getMetadata(Env, channel, function (err, metadata) {
+            if (err) {
+                cb(err);
+                return void next();
+            }
+            if (!(metadata && Array.isArray(metadata.owners))) {
+                cb('E_NO_OWNERS');
+                return void next();
+            }
+
+            // Confirm that the channel is owned by the user in question
+            // or the user is accepting a pending ownerhsip offer
+            if (metadata.pending_owners && Array.isArray(metadata.pending_owners) &&
+                        metadata.pending_owners.indexOf(unsafeKey) !== -1 &&
+                        metadata.owners.indexOf(unsafeKey) === -1) {
+
+                // If you are a pending owner, make sure you can only add yourelf as an owner
+                if ((command !== 'ADD_OWNERS' && command !== 'RM_PENDING_OWNERS')
+                        || !Array.isArray(data.value)
+                        || data.value.length !== 1
+                        || data.value[0] !== unsafeKey) {
+                    cb('INSUFFICIENT_PERMISSIONS');
+                    return void next();
+                }
+
+            } else if (metadata.owners.indexOf(unsafeKey) === -1) {
+                cb('INSUFFICIENT_PERMISSIONS');
+                return void next();
+            }
+
+            // Add the new metadata line
+            var line = [command, data.value, +new Date()];
+            var changed = false;
+            try {
+                changed = Meta.handleCommand(metadata, line);
+            } catch (e) {
+                cb(e);
+                return void next();
+            }
+
+            // if your command is valid but it didn't result in any change to the metadata,
+            // call back now and don't write any "useless" line to the log
+            if (!changed) {
+                cb(void 0, metadata);
+                return void next();
+            }
+            Env.msgStore.writeMetadata(channel, JSON.stringify(line), function (e) {
+                if (e) {
+                    cb(e);
+                    return void next();
+                }
+                cb(void 0, metadata);
+                next();
+            });
+        });
     });
 };
 
@@ -395,19 +474,22 @@ var getDeletedPads = function (Env, channels, cb) {
     });
 };
 
+const batchTotalSize = BatchRead("GET_TOTAL_SIZE");
 var getTotalSize = function (Env, publicKey, cb) {
-    var bytes = 0;
-    return void getChannelList(Env, publicKey, function (channels) {
-        if (!channels) { return cb('INVALID_PIN_LIST'); } // unexpected
+    batchTotalSize(publicKey, cb, function (done) {
+        var bytes = 0;
+        return void getChannelList(Env, publicKey, function (channels) {
+            if (!channels) { return done('INVALID_PIN_LIST'); } // unexpected
 
-        var count = channels.length;
-        if (!count) { cb(void 0, 0); }
+            var count = channels.length;
+            if (!count) { return void done(void 0, 0); }
 
-        channels.forEach(function (channel) {
-            getFileSize(Env, channel, function (e, size) {
-                count--;
-                if (!e) { bytes += size; }
-                if (count === 0) { return cb(void 0, bytes); }
+            channels.forEach(function (channel) { // FIXME this might as well be nThen
+                getFileSize(Env, channel, function (e, size) {
+                    count--;
+                    if (!e) { bytes += size; }
+                    if (count === 0) { return done(void 0, bytes); }
+                });
             });
         });
     });
@@ -463,7 +545,7 @@ var applyCustomLimits = function (Env, config) {
 
 // The limits object contains storage limits for all the publicKey that have paid
 // To each key is associated an object containing the 'limit' value and a 'note' explaining that limit
-var updateLimits = function (Env, config, publicKey, cb /*:(?string, ?any[])=>void*/) {
+var updateLimits = function (Env, config, publicKey, cb /*:(?string, ?any[])=>void*/) { // FIXME BATCH?
 
     if (config.adminEmail === false) {
         applyCustomLimits(Env, config);
@@ -658,7 +740,7 @@ var pinChannel = function (Env, publicKey, channels, cb) {
                 }
                 if (pinSize > free) { return void cb('E_OVER_LIMIT'); }
 
-                Env.pinStore.message(publicKey, JSON.stringify(['PIN', toStore]),
+                Env.pinStore.message(publicKey, JSON.stringify(['PIN', toStore, +new Date()]),
                     function (e) {
                     if (e) { return void cb(e); }
                     toStore.forEach(function (channel) {
@@ -690,7 +772,7 @@ var unpinChannel = function (Env, publicKey, channels, cb) {
             return void getHash(Env, publicKey, cb);
         }
 
-        Env.pinStore.message(publicKey, JSON.stringify(['UNPIN', toStore]),
+        Env.pinStore.message(publicKey, JSON.stringify(['UNPIN', toStore, +new Date()]),
             function (e) {
             if (e) { return void cb(e); }
             toStore.forEach(function (channel) {
@@ -734,7 +816,7 @@ var resetUserPins = function (Env, publicKey, channelList, cb) {
                 They will not be able to pin additional pads until they upgrade
                 or delete enough files to go back under their limit. */
             if (pinSize > limit[0] && session.hasPinned) { return void(cb('E_OVER_LIMIT')); }
-            Env.pinStore.message(publicKey, JSON.stringify(['RESET', channelList]),
+            Env.pinStore.message(publicKey, JSON.stringify(['RESET', channelList, +new Date()]),
                 function (e) {
                 if (e) { return void cb(e); }
                 channelList.forEach(function (channel) {
@@ -756,7 +838,7 @@ var resetUserPins = function (Env, publicKey, channelList, cb) {
     });
 };
 
-var makeFileStream = function (root, id, cb) {
+var makeFileStream = function (root, id, cb) { // FIXME FILES
     var stub = id.slice(0, 2);
     var full = makeFilePath(root, id);
     if (!full) {
@@ -787,7 +869,7 @@ var makeFileStream = function (root, id, cb) {
     });
 };
 
-var isFile = function (filePath, cb) {
+var isFile = function (filePath, cb) { // FIXME FILES
     /*:: if (typeof(filePath) !== 'string') { throw new Error('should never happen'); } */
     Fs.stat(filePath, function (e, stats) {
         if (e) {
@@ -817,8 +899,7 @@ var clearOwnedChannel = function (Env, channelId, unsafeKey, cb) {
     });
 };
 
-var removeOwnedBlob = function (Env, blobId, unsafeKey, cb) {
-        // FIXME METADATA
+var removeOwnedBlob = function (Env, blobId, unsafeKey, cb) { // FIXME FILES // FIXME METADATA
     var safeKey = escapeKeyCharacters(unsafeKey);
     var safeKeyPrefix = safeKey.slice(0,3);
     var blobPrefix = blobId.slice(0,2);
@@ -934,7 +1015,7 @@ var removePins = function (Env, safeKey, cb) {
     });
 };
 
-var upload = function (Env, publicKey, content, cb) {
+var upload = function (Env, publicKey, content, cb) { // FIXME FILES
     var paths = Env.paths;
     var dec;
     try { dec = Buffer.from(content, 'base64'); }
@@ -970,7 +1051,7 @@ var upload = function (Env, publicKey, content, cb) {
     }
 };
 
-var upload_cancel = function (Env, publicKey, fileSize, cb) {
+var upload_cancel = function (Env, publicKey, fileSize, cb) { // FIXME FILES
     var paths = Env.paths;
 
     var session = getSession(Env.Sessions, publicKey);
@@ -994,7 +1075,7 @@ var upload_cancel = function (Env, publicKey, fileSize, cb) {
     });
 };
 
-var upload_complete = function (Env, publicKey, id, cb) { // FIXME logging
+var upload_complete = function (Env, publicKey, id, cb) { // FIXME FILES
     var paths = Env.paths;
     var session = getSession(Env.Sessions, publicKey);
 
@@ -1010,7 +1091,7 @@ var upload_complete = function (Env, publicKey, id, cb) { // FIXME logging
 
     var oldPath = makeFilePath(paths.staging, publicKey);
     if (!oldPath) {
-        WARN('safeMkdir', "oldPath is null"); // FIXME logging
+        WARN('safeMkdir', "oldPath is null");
         return void cb('RENAME_ERR');
     }
 
@@ -1018,13 +1099,13 @@ var upload_complete = function (Env, publicKey, id, cb) { // FIXME logging
         var prefix = id.slice(0, 2);
         var newPath = makeFilePath(paths.blob, id);
         if (typeof(newPath) !== 'string') {
-            WARN('safeMkdir', "newPath is null"); // FIXME logging
+            WARN('safeMkdir', "newPath is null");
             return void cb('RENAME_ERR');
         }
 
         Fse.mkdirp(Path.join(paths.blob, prefix), function (e) {
             if (e || !newPath) {
-                WARN('safeMkdir', e); // FIXME logging
+                WARN('safeMkdir', e);
                 return void cb('RENAME_ERR');
             }
             isFile(newPath, function (e, yes) {
@@ -1047,7 +1128,6 @@ var upload_complete = function (Env, publicKey, id, cb) { // FIXME logging
             return void cb(e || 'PATH_ERR');
         }
 
-        // lol wut handle ur errors
         Fse.move(oldPath, newPath, function (e) {
             if (e) {
                 WARN('rename', e);
@@ -1060,7 +1140,7 @@ var upload_complete = function (Env, publicKey, id, cb) { // FIXME logging
     tryLocation(handleMove);
 };
 
-/*
+/* FIXME FILES
 var owned_upload_complete = function (Env, safeKey, cb) {
     var session = getSession(Env.Sessions, safeKey);
 
@@ -1155,7 +1235,7 @@ var owned_upload_complete = function (Env, safeKey, cb) {
 };
 */
 
-var owned_upload_complete = function (Env, safeKey, id, cb) { // FIXME logging
+var owned_upload_complete = function (Env, safeKey, id, cb) { // FIXME FILES
     var session = getSession(Env.Sessions, safeKey);
 
     // the file has already been uploaded to the staging area
@@ -1266,7 +1346,7 @@ var owned_upload_complete = function (Env, safeKey, id, cb) { // FIXME logging
     });
 };
 
-var upload_status = function (Env, publicKey, filesize, cb) {
+var upload_status = function (Env, publicKey, filesize, cb) { // FIXME FILES
     var paths = Env.paths;
 
     // validate that the provided size is actually a positive number
@@ -1312,7 +1392,7 @@ var upload_status = function (Env, publicKey, filesize, cb) {
     author of the block, since we assume that the block will have been
     encrypted with xsalsa20-poly1305 which is authenticated.
 */
-var validateLoginBlock = function (Env, publicKey, signature, block, cb) {
+var validateLoginBlock = function (Env, publicKey, signature, block, cb) { // FIXME BLOCKS
     // convert the public key to a Uint8Array and validate it
     if (typeof(publicKey) !== 'string') { return void cb('E_INVALID_KEY'); }
 
@@ -1353,7 +1433,7 @@ var validateLoginBlock = function (Env, publicKey, signature, block, cb) {
     return void cb(null, u8_block);
 };
 
-var createLoginBlockPath = function (Env, publicKey) {
+var createLoginBlockPath = function (Env, publicKey) { // FIXME BLOCKS
     // prepare publicKey to be used as a file name
     var safeKey = escapeKeyCharacters(publicKey);
 
@@ -1367,7 +1447,7 @@ var createLoginBlockPath = function (Env, publicKey) {
     return Path.join(Env.paths.block, safeKey.slice(0, 2), safeKey);
 };
 
-var writeLoginBlock = function (Env, msg, cb) {
+var writeLoginBlock = function (Env, msg, cb) { // FIXME BLOCKS
     //console.log(msg);
     var publicKey = msg[0];
     var signature = msg[1];
@@ -1398,7 +1478,7 @@ var writeLoginBlock = function (Env, msg, cb) {
                     cb(e);
                 }
             }));
-        }).nThen(function () { // FIXME logging
+        }).nThen(function () {
             // actually write the block
 
             // flow is dumb and I need to guard against this which will never happen
@@ -1422,7 +1502,7 @@ var writeLoginBlock = function (Env, msg, cb) {
     information, we can just sign some constant and use that as proof.
 
 */
-var removeLoginBlock = function (Env, msg, cb) {
+var removeLoginBlock = function (Env, msg, cb) { // FIXME BLOCKS
     var publicKey = msg[0];
     var signature = msg[1];
     var block = Nacl.util.decodeUTF8('DELETE_BLOCK'); // clients and the server will have to agree on this constant
@@ -1479,53 +1559,111 @@ var isNewChannel = function (Env, channel, cb) {
     });
 };
 
-var getDiskUsage = function (Env, cb) {
-    var data = {};
-    nThen(function (waitFor) {
-        getFolderSize('./', waitFor(function(err, info) {
-            data.total = info;
-        }));
-        getFolderSize(Env.paths.pin, waitFor(function(err, info) {
-            data.pin = info;
-        }));
-        getFolderSize(Env.paths.blob, waitFor(function(err, info) {
-            data.blob = info;
-        }));
-        getFolderSize(Env.paths.staging, waitFor(function(err, info) {
-            data.blobstage = info;
-        }));
-        getFolderSize(Env.paths.block, waitFor(function(err, info) {
-            data.block = info;
-        }));
-        getFolderSize(Env.paths.data, waitFor(function(err, info) {
-            data.datastore = info;
-        }));
-    }).nThen(function () {
-        cb (void 0, data);
+/*  writePrivateMessage
+    allows users to anonymously send a message to the channel
+    prevents their netflux-id from being stored in history
+    and from being broadcast to anyone that might currently be in the channel
+
+    Otherwise behaves the same as sending to a channel
+*/
+var writePrivateMessage = function (Env, args, nfwssCtx, cb) {
+    var channelId = args[0];
+    var msg = args[1];
+
+    // don't bother handling empty messages
+    if (!msg) { return void cb("INVALID_MESSAGE"); }
+
+    // don't support anything except regular channels
+    if (!isValidId(channelId) || channelId.length !== 32) {
+        return void cb("INVALID_CHAN");
+    }
+
+    // We expect a modern netflux-websocket-server instance
+    // if this API isn't here everything will fall apart anyway
+    if (!(nfwssCtx && nfwssCtx.historyKeeper && typeof(nfwssCtx.historyKeeper.onChannelMessage) === 'function')) {
+        return void cb("NOT_IMPLEMENTED");
+    }
+
+    // historyKeeper expects something with an 'id' attribute
+    // it will fail unless you provide it, but it doesn't need anything else
+    var channelStruct = {
+        id: channelId,
+    };
+
+    // construct a message to store and broadcast
+    var fullMessage = [
+        0, // idk
+        null, // normally the netflux id, null isn't rejected, and it distinguishes messages written in this way
+        "MSG", // indicate that this is a MSG
+        channelId, // channel id
+        msg // the actual message content. Generally a string
+    ];
+
+    // store the message and do everything else that is typically done when going through historyKeeper
+    nfwssCtx.historyKeeper.onChannelMessage(nfwssCtx, channelStruct, fullMessage);
+
+    // call back with the message and the target channel.
+    // historyKeeper will take care of broadcasting it if anyone is in the channel
+    cb(void 0, {
+        channel: channelId,
+        message: fullMessage
     });
 };
-var getRegisteredUsers = function (Env, cb) {
-    var dir = Env.paths.pin;
-    var folders;
-    var users = 0;
-    nThen(function (waitFor) {
-        Fs.readdir(dir, waitFor(function (err, list) {
-            if (err) {
-                waitFor.abort();
-                return void cb(err);
-            }
-            folders = list;
-        }));
-    }).nThen(function (waitFor) {
-        folders.forEach(function (f) {
-            var dir = Env.paths.pin + '/' + f;
-            Fs.readdir(dir, waitFor(function (err, list) {
-                if (err) { return; }
-                users += list.length;
+
+const batchDiskUsage = BatchRead("GET_DISK_USAGE");
+var getDiskUsage = function (Env, cb) {
+    batchDiskUsage('', cb, function (done) {
+        var data = {};
+        nThen(function (waitFor) {
+            getFolderSize('./', waitFor(function(err, info) {
+                data.total = info;
             }));
+            getFolderSize(Env.paths.pin, waitFor(function(err, info) {
+                data.pin = info;
+            }));
+            getFolderSize(Env.paths.blob, waitFor(function(err, info) {
+                data.blob = info;
+            }));
+            getFolderSize(Env.paths.staging, waitFor(function(err, info) {
+                data.blobstage = info;
+            }));
+            getFolderSize(Env.paths.block, waitFor(function(err, info) {
+                data.block = info;
+            }));
+            getFolderSize(Env.paths.data, waitFor(function(err, info) {
+                data.datastore = info;
+            }));
+        }).nThen(function () {
+            done(void 0, data);
         });
-    }).nThen(function () {
-        cb(void 0, users);
+    });
+};
+
+const batchRegisteredUsers = BatchRead("GET_REGISTERED_USERS");
+var getRegisteredUsers = function (Env, cb) {
+    batchRegisteredUsers('', cb, function (done) {
+        var dir = Env.paths.pin;
+        var folders;
+        var users = 0;
+        nThen(function (waitFor) {
+            Fs.readdir(dir, waitFor(function (err, list) {
+                if (err) {
+                    waitFor.abort();
+                    return void done(err);
+                }
+                folders = list;
+            }));
+        }).nThen(function (waitFor) {
+            folders.forEach(function (f) {
+                var dir = Env.paths.pin + '/' + f;
+                Fs.readdir(dir, waitFor(function (err, list) {
+                    if (err) { return; }
+                    users += list.length;
+                }));
+            });
+        }).nThen(function () {
+            done(void 0, users);
+        });
     });
 };
 var getActiveSessions = function (Env, ctx, cb) {
@@ -1578,6 +1716,7 @@ var isUnauthenticatedCall = function (call) {
         'IS_NEW_CHANNEL',
         'GET_HISTORY_OFFSET',
         'GET_DELETED_PADS',
+        'WRITE_PRIVATE_MESSAGE',
     ].indexOf(call) !== -1;
 };
 
@@ -1602,6 +1741,7 @@ var isAuthenticatedCall = function (call) {
         'WRITE_LOGIN_BLOCK',
         'REMOVE_LOGIN_BLOCK',
         'ADMIN',
+        'SET_METADATA'
     ].indexOf(call) !== -1;
 };
 
@@ -1693,6 +1833,7 @@ RPC.create = function (
     };
 
     var handleUnauthenticatedMessage = function (msg, respond, nfwssCtx) {
+        Log.silly('LOG_RPC', msg[0]);
         switch (msg[0]) {
             case 'GET_HISTORY_OFFSET': {
                 if (typeof(msg[1]) !== 'object' || typeof(msg[1].channelName) !== 'string') {
@@ -1716,7 +1857,7 @@ RPC.create = function (
                     respond(e, [null, size, null]);
                 });
             case 'GET_METADATA':
-                return void getMetadata(Env, msg[1], function (e, data) { // FIXME METADATA
+                return void getMetadata(Env, msg[1], function (e, data) {
                     WARN(e, msg[1]);
                     respond(e, [null, data, null]);
                 });
@@ -1744,6 +1885,10 @@ RPC.create = function (
                 return void isNewChannel(Env, msg[1], function (e, isNew) {
                     respond(e, [null, isNew, null]);
                 });
+            case 'WRITE_PRIVATE_MESSAGE':
+                return void writePrivateMessage(Env, msg[1], nfwssCtx, function (e, output) {
+                    respond(e, output);
+                });
             default:
                 Log.warn("UNSUPPORTED_RPC_CALL", msg);
                 return respond('UNSUPPORTED_RPC_CALL', msg);
@@ -1751,8 +1896,6 @@ RPC.create = function (
     };
 
     var rpc0 = function (ctx, data, respond) {
-        if (!Env.msgStore) { Env.msgStore = ctx.store; }
-
         if (!Array.isArray(data)) {
             Log.debug('INVALID_ARG_FORMET', data);
             return void respond('INVALID_ARG_FORMAT');
@@ -1970,6 +2113,14 @@ RPC.create = function (
                         return void Respond(e);
                     }
                     Respond(void 0, result);
+                });
+            case 'SET_METADATA':
+                return void setMetadata(Env, msg[1], publicKey, function (e, data) {
+                    if (e) {
+                        WARN(e, data);
+                        return void Respond(e);
+                    }
+                    Respond(void 0, data);
                 });
             default:
                 return void Respond('UNSUPPORTED_RPC_CALL', msg);

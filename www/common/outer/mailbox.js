@@ -2,10 +2,11 @@ define([
     '/common/common-util.js',
     '/common/common-hash.js',
     '/common/common-realtime.js',
+    '/common/notify.js',
     '/common/outer/mailbox-handlers.js',
     '/bower_components/chainpad-netflux/chainpad-netflux.js',
     '/bower_components/chainpad-crypto/crypto.js',
-], function (Util, Hash, Realtime, Handlers, CpNetflux, Crypto) {
+], function (Util, Hash, Realtime, Notify, Handlers, CpNetflux, Crypto) {
     var Mailbox = {};
 
     var TYPES = [
@@ -54,11 +55,11 @@ proxy.mailboxes = {
         return (m.viewed || []).indexOf(hash) === -1 && hash !== m.lastKnownHash;
     };
 
-    var showMessage = function (ctx, type, msg, cId) {
+    var showMessage = function (ctx, type, msg, cId, cb) {
         ctx.emit('MESSAGE', {
             type: type,
             content: msg
-        }, cId ? [cId] : ctx.clients);
+        }, cId ? [cId] : ctx.clients, cb);
     };
     var hideMessage = function (ctx, type, hash, clients) {
         ctx.emit('VIEWED', {
@@ -77,7 +78,12 @@ proxy.mailboxes = {
     };
 
     // Send a message to someone else
-    var sendTo = Mailbox.sendTo = function (ctx, type, msg, user, cb) {
+    var sendTo = Mailbox.sendTo = function (ctx, type, msg, user, _cb) {
+        var cb = _cb || function (obj) {
+            if (obj && obj.error) {
+                console.error(obj.error);
+            }
+        };
         if (!Crypto.Mailbox) {
             return void cb({error: "chainpad-crypto is outdated and doesn't support mailboxes."});
         }
@@ -85,8 +91,10 @@ proxy.mailboxes = {
         if (!keys) { return void cb({error: "missing asymmetric encryption keys"}); }
         if (!user || !user.channel || !user.curvePublic) { return void cb({error: "no notification channel"}); }
 
+        var anonRpc = Util.find(ctx, [ 'store', 'anon_rpc', ]);
+        if (!anonRpc) { return void cb({error: "anonymous rpc session not ready"}); }
+
         var crypto = Crypto.Mailbox.createEncryptor(keys);
-        var network = ctx.store.network;
 
         var text = JSON.stringify({
             type: type,
@@ -94,29 +102,16 @@ proxy.mailboxes = {
         });
         var ciphertext = crypto.encrypt(text, user.curvePublic);
 
-        network.join(user.channel).then(function (wc) {
-            wc.bcast(ciphertext).then(function () {
-                cb();
-
-                // If we've just sent a message to one of our mailboxes, we have to trigger the handler manually
-                // (the server won't send back our message to us)
-                // If it isn't one of our mailboxes, we can close it now
-                var box;
-                if (Object.keys(ctx.boxes).some(function (t) {
-                    var _box = ctx.boxes[t];
-                    if (_box.channel === user.channel) {
-                        box = _box;
-                        return true;
-                    }
-                })) {
-                    var hash = ciphertext.slice(0, 64);
-                    box.onMessage(text, null, null, null, hash, user.curvePublic);
-                } else {
-                    wc.leave();
-                }
-            });
-        }, function (err) {
-            cb({error: err});
+        anonRpc.send("WRITE_PRIVATE_MESSAGE", [
+            user.channel,
+            ciphertext
+        ], function (err /*, response */) {
+            if (err) {
+                return void cb({
+                    error: err,
+                });
+            }
+            return void cb();
         });
     };
 
@@ -200,7 +195,6 @@ proxy.mailboxes = {
                 box.queue.push(msg);
             }
         };
-        Crypto = Crypto;
         if (!Crypto.Mailbox) {
             return void console.error("chainpad-crypto is outdated and doesn't support mailboxes.");
         }
@@ -279,7 +273,11 @@ proxy.mailboxes = {
                         });
                     }
                     box.content[hash] = msg;
-                    showMessage(ctx, type, message);
+                    showMessage(ctx, type, message, null, function (obj) {
+                        if (!box.ready) { return; }
+                        if (!obj || !obj.msg) { return; }
+                        Notify.system(undefined, obj.msg);
+                    });
                 });
             } else {
                 // Message has already been viewed by the user
@@ -327,6 +325,7 @@ proxy.mailboxes = {
                     view(n);
                 }
             });
+            box.ready = true;
             // Continue
             onReady();
         };
@@ -353,6 +352,7 @@ proxy.mailboxes = {
                 try {
                     var decrypted = box.encryptor.decrypt(_msg[4]);
                     message = JSON.parse(decrypted.content);
+                    message.author = decrypted.author;
                 } catch (e) {
                     console.log(e);
                 }
