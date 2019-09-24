@@ -91,13 +91,16 @@ define([
         });
     };
     // Settings and drive and auth
-    common.getUserObject = function (cb) {
-        postMessage("GET", [], function (obj) {
+    common.getUserObject = function (teamId, cb) {
+        postMessage("GET", {
+            teamId: teamId,
+            key: []
+        }, function (obj) {
             cb(obj);
         });
     };
-    common.getSharedFolder = function (id, cb) {
-        postMessage("GET_SHARED_FOLDER", id, function (obj) {
+    common.getSharedFolder = function (data, cb) {
+        postMessage("GET_SHARED_FOLDER", data, function (obj) {
             cb(obj);
         });
     };
@@ -106,6 +109,13 @@ define([
             id: id,
             data: data
         }, cb);
+    };
+    common.getEdPublic = function (teamId, cb) {
+        postMessage("GET", {
+            key: teamId ? ['teams', teamId, 'keys', 'drive', 'edPublic'] : ['edPublic']
+        }, function (obj) {
+            cb(obj);
+        });
     };
     // Settings and ready
     common.mergeAnonDrive = function (cb) {
@@ -137,6 +147,7 @@ define([
             return;
         }
         postMessage("SET", {
+            teamId: data.teamId,
             key:['drive'],
             value: data.drive
         }, function (obj) {
@@ -145,8 +156,9 @@ define([
             timeout: 5 * 60 * 1000
         });
     };
-    common.addSharedFolder = function (secret, cb) {
+    common.addSharedFolder = function (teamId, secret, cb) {
         postMessage("ADD_SHARED_FOLDER", {
+            teamId: teamId,
             path: ['root'],
             folderData: {
                 href: '/drive/#' + Hash.getEditHashFromKeys(secret),
@@ -163,7 +175,7 @@ define([
     common.drive.onRemove = Util.mkEvent();
     // Profile
     common.getProfileEditUrl = function (cb) {
-        postMessage("GET", ['profile', 'edit'], function (obj) {
+        postMessage("GET", { key: ['profile', 'edit'] }, function (obj) {
             cb(obj);
         });
     };
@@ -184,7 +196,7 @@ define([
     };
     // Todo
     common.getTodoHash = function (cb) {
-        postMessage("GET", ['todo'], function (obj) {
+        postMessage("GET", { key: ['todo'] }, function (obj) {
             cb(obj);
         });
     };
@@ -211,8 +223,8 @@ define([
         });
     };
 
-    common.getPinnedUsage = function (cb) {
-        postMessage("GET_PINNED_USAGE", null, function (obj) {
+    common.getPinnedUsage = function (data, cb) {
+        postMessage("GET_PINNED_USAGE", data, function (obj) {
             if (obj.error) { return void cb(obj.error); }
             cb(null, obj.bytes);
         });
@@ -225,14 +237,14 @@ define([
         });
     };
 
-    common.getPinLimit = function (cb) {
-        postMessage("GET_PIN_LIMIT", null, function (obj) {
+    common.getPinLimit = function (data, cb) {
+        postMessage("GET_PIN_LIMIT", data, function (obj) {
             if (obj.error) { return void cb(obj.error); }
             cb(undefined, obj.limit, obj.plan, obj.note);
         });
     };
 
-    common.isOverPinLimit = function (cb) {
+    common.isOverPinLimit = function (teamId, cb) {
         if (!LocalStore.isLoggedIn()) { return void cb(null, false); }
         var usage;
         var andThen = function (e, limit, plan) {
@@ -246,20 +258,21 @@ define([
         var todo = function (e, used) {
             if (e) { return void cb(e); }
             usage = used;
-            common.getPinLimit(andThen);
+            common.getPinLimit({
+                teamId: teamId
+            }, andThen);
         };
-        common.getPinnedUsage(todo);
+        common.getPinnedUsage({
+            teamId: teamId
+        }, todo);
     };
 
     common.clearOwnedChannel = function (channel, cb) {
         postMessage("CLEAR_OWNED_CHANNEL", channel, cb);
     };
     // "force" allows you to delete your drive ID
-    common.removeOwnedChannel = function (channel, cb, force) {
-        postMessage("REMOVE_OWNED_CHANNEL", {
-            channel: channel,
-            force: force
-        }, cb);
+    common.removeOwnedChannel = function (data, cb) {
+        postMessage("REMOVE_OWNED_CHANNEL", data, cb);
     };
 
     common.getDeletedPads = function (data, cb) {
@@ -269,29 +282,29 @@ define([
         });
     };
 
-    common.uploadComplete = function (id, owned, cb) {
-        postMessage("UPLOAD_COMPLETE", {id: id, owned: owned}, function (obj) {
+    common.uploadComplete = function (teamId, id, owned, cb) {
+        postMessage("UPLOAD_COMPLETE", {teamId: teamId, id: id, owned: owned}, function (obj) {
             if (obj && obj.error) { return void cb(obj.error); }
             cb(null, obj);
         });
     };
 
-    common.uploadStatus = function (size, cb) {
-        postMessage("UPLOAD_STATUS", {size: size}, function (obj) {
+    common.uploadStatus = function (teamId, size, cb) {
+        postMessage("UPLOAD_STATUS", {teamId: teamId, size: size}, function (obj) {
             if (obj && obj.error) { return void cb(obj.error); }
             cb(null, obj);
         });
     };
 
-    common.uploadCancel = function (size, cb) {
-        postMessage("UPLOAD_CANCEL", {size: size}, function (obj) {
+    common.uploadCancel = function (teamId, size, cb) {
+        postMessage("UPLOAD_CANCEL", {teamId: teamId, size: size}, function (obj) {
             if (obj && obj.error) { return void cb(obj.error); }
             cb(null, obj);
         });
     };
 
-    common.uploadChunk = function (data, cb) {
-        postMessage("UPLOAD_CHUNK", {chunk: data}, function (obj) {
+    common.uploadChunk = function (teamId, data, cb) {
+        postMessage("UPLOAD_CHUNK", {teamId: teamId, chunk: data}, function (obj) {
             if (obj && obj.error) { return void cb(obj.error); }
             cb(null, obj);
         });
@@ -492,6 +505,7 @@ define([
         Cryptput(hash, data.toSave, function (e) {
             if (e) { throw new Error(e); }
             postMessage("ADD_PAD", {
+                teamId: data.teamId,
                 href: href,
                 title: data.title,
                 path: ['template']
@@ -649,6 +663,16 @@ define([
 
         if (typeof (data.title) !== "string") { return cb('Missing title'); }
 
+        if (common.initialTeam) {
+            // If the value is -1, it means the user drive was selected from the pad creation screen
+            // If the value is a positive Integer, force save in the team with the selected ID
+            if (common.initialTeam !== -1) {
+                // Team selected from the PCS or pad created from a team drive
+                data.teamId = common.initialTeam;
+            }
+            data.forceSave = 1;
+            delete common.initialTeam;
+        }
         if (common.initialPath) {
             if (!data.path) {
                 data.path = Array.isArray(common.initialPath) ? common.initialPath
@@ -663,6 +687,47 @@ define([
                 return void cb(obj.error);
             }
             cb();
+        });
+    };
+
+    common.storeInTeam = function (data, cb) {
+        if (!data.href) { return void cb({error: 'EINVAL'}); }
+        var parsed = Hash.parsePadUrl(data.href);
+        var secret = Hash.getSecrets(parsed.type, parsed.hash, data.password);
+        if (!secret || !secret.channel) { return void cb ({error: 'EINVAL'}); }
+
+        if (parsed.type === 'drive') {
+            // Shared folder
+            var teamId = data.teamId === -1 ? undefined : data.teamId;
+            common.addSharedFolder(teamId, secret, cb);
+            return;
+        }
+
+        Nthen(function (waitFor) {
+            if (parsed.hashData.type !== 'pad') { return; }
+            // Set the correct owner and expiration time if we can find them
+            postMessage('GET_PAD_METADATA', {
+                channel: secret.channel
+            }, waitFor(function (obj) {
+                if (!obj || obj.error) { return; }
+                data.owners = obj.owners;
+                data.expire = +obj.expire;
+            }));
+        }).nThen(function () {
+            postMessage("SET_PAD_TITLE", {
+                teamId: data.teamId,
+                href: data.href,
+                title: data.title,
+                password: data.password,
+                channel: secret.channel,
+                path: data.path,
+                owners: data.owners,
+                expire: data.expire,
+                forceSave: 1
+            }, function (obj) {
+                if (obj && obj.error) { return void cb(obj.error); }
+                cb();
+            });
         });
     };
 
@@ -708,13 +773,6 @@ define([
         postMessage("OO_COMMAND", data, cb);
     };
     onlyoffice.onEvent = Util.mkEvent();
-
-    // Messenger
-    var messenger = common.messenger = {};
-    messenger.execCommand = function (data, cb) {
-        postMessage("CHAT_COMMAND", data, cb);
-    };
-    messenger.onEvent = Util.mkEvent();
 
     // Cursor
     var cursor = common.cursor = {};
@@ -772,6 +830,7 @@ define([
         postMessage('GET_PAD_METADATA', data, cb);
     };
 
+    // XXX Teams: change the password of a pad owned by the team
     common.changePadPassword = function (Crypt, Crypto, href, newPassword, edPublic, cb) {
         if (!href) { return void cb({ error: 'EINVAL_HREF' }); }
         var parsed = Hash.parsePadUrl(href);
@@ -872,7 +931,10 @@ define([
             }, waitFor());
             pad.onDisconnectEvent.fire(true);
         }).nThen(function (waitFor) {
-            common.removeOwnedChannel(oldChannel, waitFor(function (obj) {
+            common.removeOwnedChannel({
+                channel: oldChannel,
+                teamId: null // TODO
+            }, waitFor(function (obj) {
                 if (obj && obj.error) {
                     waitFor.abort();
                     return void cb(obj);
@@ -1049,7 +1111,11 @@ define([
         }).nThen(function (waitFor) {
             if (oldIsOwned) {
                 console.log('removing old drive');
-                common.removeOwnedChannel(secret.channel, waitFor(function (obj) {
+                common.removeOwnedChannel({
+                    channel: secret.channel,
+                    teamId: null,
+                    force: true
+                }, waitFor(function (obj) {
                     if (obj && obj.error) {
                         // Deal with it as if it was not owned
                         oldIsOwned = false;
@@ -1058,12 +1124,13 @@ define([
                     common.logoutFromAll(waitFor(function () {
                         postMessage("DISCONNECT");
                     }));
-                }), true);
+                }));
             }
         }).nThen(function (waitFor) {
             if (!oldIsOwned) {
                 console.error('deprecating old drive.');
                 postMessage("SET", {
+                    teamId: data.teamId,
                     key: [Constants.deprecatedKey],
                     value: true
                 }, waitFor(function (obj) {
@@ -1221,8 +1288,6 @@ define([
         },
         // OnlyOffice
         OO_EVENT: common.onlyoffice.onEvent.fire,
-        // Chat
-        CHAT_EVENT: common.messenger.onEvent.fire,
         // Cursor
         CURSOR_EVENT: common.cursor.onEvent.fire,
         // Mailbox
@@ -1376,7 +1441,6 @@ define([
                 anonHash: LocalStore.getFSHash(),
                 localToken: tryParsing(localStorage.getItem(Constants.tokenKey)), // TODO move this to LocalStore ?
                 language: common.getLanguage(),
-                messenger: rdyCfg.messenger, // Boolean
                 driveEvents: rdyCfg.driveEvents // Boolean
             };
             // if a pad is created from a file
@@ -1388,6 +1452,11 @@ define([
             if (sessionStorage[Constants.newPadPathKey]) {
                 common.initialPath = sessionStorage[Constants.newPadPathKey];
                 delete sessionStorage[Constants.newPadPathKey];
+            }
+
+            if (sessionStorage[Constants.newPadTeamKey]) {
+                common.initialTeam = sessionStorage[Constants.newPadTeamKey];
+                delete sessionStorage[Constants.newPadTeamKey];
             }
 
             var channelIsReady = waitFor();

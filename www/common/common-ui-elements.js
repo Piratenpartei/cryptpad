@@ -14,7 +14,9 @@ define([
     '/customize/application_config.js',
     '/customize/pages.js',
     '/bower_components/nthen/index.js',
-    'css!/customize/fonts/cptools/style.css'
+    'css!/customize/fonts/cptools/style.css',
+    '/bower_components/croppie/croppie.min.js',
+    'css!/bower_components/croppie/croppie.css',
 ], function ($, Config, Util, Hash, Language, UI, Constants, Feedback, h, MediaTag, Clipboard,
              Messages, AppConfig, Pages, NThen) {
     var UIElements = {};
@@ -144,18 +146,6 @@ define([
             }, function () {
             });
             var $div = $(removeCol.div);
-            var others1 = removeCol.others;
-            $div.append(h('div.cp-share-grid', others1));
-            $div.find('.cp-share-friend').click(function () {
-                var sel = $(this).hasClass('cp-selected');
-                if (!sel) {
-                    $(this).addClass('cp-selected');
-                } else {
-                    var order = $(this).attr('data-order');
-                    order = order ? 'order:'+order : '';
-                    $(this).removeClass('cp-selected').attr('style', order);
-                }
-            });
             // When clicking on the remove button, we check the selected users.
             // If you try to remove yourself, we'll display an additional warning message
             var btnMsg = pending ? Messages.owner_removePendingButton : Messages.owner_removeButton;
@@ -242,18 +232,6 @@ define([
                 //console.log(arguments);
             });
             $div2 = $(addCol.div);
-            var others2 = addCol.others;
-            $div2.append(h('div.cp-share-grid', others2));
-            $div2.find('.cp-share-friend').click(function () {
-                var sel = $(this).hasClass('cp-selected');
-                if (!sel) {
-                    $(this).addClass('cp-selected');
-                } else {
-                    var order = $(this).attr('data-order');
-                    order = order ? 'order:'+order : '';
-                    $(this).removeClass('cp-selected').attr('style', order);
-                }
-            });
             // When clicking on the add button, we get the selected users.
             var addButton = h('button.no-margin', Messages.owner_addButton);
             $(addButton).click(function () {
@@ -645,8 +623,8 @@ define([
             UIElements.displayAvatar(common, $(avatar), data.avatar, name);
             return h('div.cp-share-friend', {
                 'data-ed': data.edPublic,
-                'data-curve': data.curvePublic,
-                'data-name': name,
+                'data-curve': data.curvePublic || '',
+                'data-name': name.toLowerCase(),
                 'data-order': i,
                 title: name,
                 style: 'order:'+i+';'
@@ -691,7 +669,7 @@ define([
 
         // Hide friends when they are filtered using the text input
         var redraw = function () {
-            var name = $(inputFilter).val().trim().replace(/"/g, '');
+            var name = $(inputFilter).val().trim().replace(/"/g, '').toLowerCase();
             $div.find('.cp-share-friend').show();
             if (name) {
                 $div.find('.cp-share-friend:not(.cp-selected):not([data-name*="'+name+'"])').hide();
@@ -722,6 +700,19 @@ define([
             onSelect();
         });
 
+        $(div).append(h('div.cp-share-grid', others));
+        $div.on('click', '.cp-share-friend', function () {
+            var sel = $(this).hasClass('cp-selected');
+            if (!sel) {
+                $(this).addClass('cp-selected');
+            } else {
+                var order = $(this).attr('data-order');
+                order = order ? 'order:'+order : '';
+                $(this).removeClass('cp-selected').attr('style', order);
+            }
+            onSelect();
+        });
+
         return {
             others: others,
             div: div
@@ -731,6 +722,7 @@ define([
 
     var createShareWithFriends = function (config, onShare) {
         var common = config.common;
+        var sframeChan = common.getSframeChannel();
         var title = config.title;
         var friends = config.friends;
         var myName = common.getMetadataMgr().getUserData().name;
@@ -741,20 +733,62 @@ define([
             return friends[c].curvePublic.slice(0,8);
         });
 
-        var $div;
+        var div = h('div.cp-share-column.contains-nav');
+        var $div = $(div);
         // Replace "copy link" by "share with friends" if at least one friend is selected
         // Also create the "share with friends" button if it doesn't exist
         var refreshButtons = function () {
-            var $nav = $div.parents('.alertify').find('nav');
-            if (!$nav.find('.cp-share-with-friends').length) {
-                var button = h('button.primary.cp-share-with-friends', {
-                    'data-keys': '[13]'
-                }, Messages.share_withFriends);
-                $(button).click(function () {
-                    var href = Hash.getRelativeHref($('#cp-share-link-preview').val());
-                    var $friends = $div.find('.cp-share-friend.cp-selected');
-                    $friends.each(function (i, el) {
-                        var curve = $(el).attr('data-curve');
+            var $nav = $div.closest('.alertify').find('nav');
+
+            var friendMode = $div.find('.cp-share-friend.cp-selected').length;
+            if (friendMode) {
+                $nav.find('button.cp-share-with-friends').prop('disabled', '');
+            } else {
+                $nav.find('button.cp-share-with-friends').prop('disabled', 'disabled');
+            }
+        };
+
+        config.noInclude = true;
+        var friendsList = UIElements.getFriendsList(Messages.share_linkFriends, config, refreshButtons);
+        var friendDiv = friendsList.div;
+        $div.append(friendDiv);
+        var others = friendsList.others;
+
+        var privateData = common.getMetadataMgr().getPrivateData();
+        var teamsData = Util.tryParse(JSON.stringify(privateData.teams)) || {};
+        var teams = {};
+        if (privateData.enableTeams) {
+            Object.keys(teamsData).forEach(function (id) {
+                // config.teamId only exists when we're trying to share a pad from a team drive
+                // In this case, we don't want to share the pad with the current team
+                if (config.teamId && config.teamId === id) { return; }
+                var t = teamsData[id];
+                teams[t.edPublic] = {
+                    notifications: true,
+                    displayName: t.name,
+                    edPublic: t.edPublic,
+                    avatar: t.avatar,
+                    id: id
+                };
+            });
+            var teamsList = UIElements.getFriendsList('Share with a team', { // XXX
+                common: common,
+                noFilter: true,
+                friends: teams
+            }, refreshButtons);
+            $div.append(teamsList.div);
+        }
+
+        var shareButtons = [{
+            className: 'primary cp-share-with-friends',
+            name: Messages.share_withFriends,
+            onClick: function () {
+                var href = Hash.getRelativeHref($('#cp-share-link-preview').val());
+                var $friends = $div.find('.cp-share-friend.cp-selected');
+                $friends.each(function (i, el) {
+                    var curve = $(el).attr('data-curve');
+                    // Check if the selected element is a friend or a team
+                    if (curve) { // Friend
                         if (!curve || !friends[curve]) { return; }
                         var friend = friends[curve];
                         if (!friend.notifications || !friend.curvePublic) { return; }
@@ -768,44 +802,44 @@ define([
                             channel: friend.notifications,
                             curvePublic: friend.curvePublic
                         });
-                    });
-
-                    UI.findCancelButton().click();
-
-                    // Update the "recently shared with" array:
-                    // Get the selected curves
-                    var curves = $friends.toArray().map(function (el) {
-                        return ($(el).attr('data-curve') || '').slice(0,8);
-                    }).filter(function (x) { return x; });
-                    // Prepend them to the "order" array
-                    Array.prototype.unshift.apply(order, curves);
-                    order = Util.deduplicateString(order);
-                    // Make sure we don't have "old" friends and save
-                    order = order.filter(function (curve) {
-                        return smallCurves.indexOf(curve) !== -1;
-                    });
-                    common.setAttribute(['general', 'share-friends'], order);
-                    if (onShare) {
-                        onShare.fire();
+                        return;
                     }
+                    // Team
+                    var ed = $(el).attr('data-ed');
+                    var team = teams[ed];
+                    if (!team) { return; }
+                    sframeChan.query('Q_STORE_IN_TEAM', {
+                        href: href,
+                        password: config.password,
+                        path: config.isTemplate ? ['template'] : undefined,
+                        title: title,
+                        teamId: team.id
+                    }, function (err) {
+                        if (err) { return void console.error(err); }
+                    });
                 });
-                $nav.append(button);
-            }
 
-            var friendMode = $div.find('.cp-share-friend.cp-selected').length;
-            if (friendMode) {
-                $nav.find('button.primary[data-keys]').hide();
-                $nav.find('button.cp-share-with-friends').show();
-            } else {
-                $nav.find('button.primary[data-keys]').show();
-                $nav.find('button.cp-share-with-friends').hide();
-            }
-        };
+                UI.findCancelButton().click();
 
-        var friendsList = UIElements.getFriendsList(Messages.share_linkFriends, config, refreshButtons);
-        var div = friendsList.div;
-        $div = $(div);
-        var others = friendsList.others;
+                // Update the "recently shared with" array:
+                // Get the selected curves
+                var curves = $friends.toArray().map(function (el) {
+                    return ($(el).attr('data-curve') || '').slice(0,8);
+                }).filter(function (x) { return x; });
+                // Prepend them to the "order" array
+                Array.prototype.unshift.apply(order, curves);
+                order = Util.deduplicateString(order);
+                // Make sure we don't have "old" friends and save
+                order = order.filter(function (curve) {
+                    return smallCurves.indexOf(curve) !== -1;
+                });
+                common.setAttribute(['general', 'share-friends'], order);
+                if (onShare) {
+                    onShare.fire();
+                }
+            },
+            keys: [13]
+        }];
 
         common.getAttribute(['general', 'share-friends'], function (err, val) {
             order = val || [];
@@ -829,18 +863,10 @@ define([
                 $(el).attr('data-order', i).css('order', i);
             });
             // Display them
-            $div.append(h('div.cp-share-grid', others));
-            $div.find('.cp-share-friend').click(function () {
-                var sel = $(this).hasClass('cp-selected');
-                if (!sel) {
-                    $(this).addClass('cp-selected');
-                } else {
-                    var order = $(this).attr('data-order');
-                    order = order ? 'order:'+order : '';
-                    $(this).removeClass('cp-selected').attr('style', order);
-                }
-                refreshButtons();
-            });
+            $(friendDiv).find('.cp-share-grid').detach();
+            $(friendDiv).append(h('div.cp-share-grid', others));
+            $div.append(UI.dialog.getButtons(shareButtons, config.onClose));
+            refreshButtons();
         });
         return div;
     };
@@ -859,25 +885,22 @@ define([
         var friendsList = hasFriends ? createShareWithFriends(config, onFriendShare) : undefined;
         var friendsUIClass = hasFriends ? '.cp-share-columns' : '';
 
-        var link = h('div.cp-share-modal' + friendsUIClass, [
-            h('div.cp-share-column', [
-                hasFriends ? h('p', Messages.share_description) : undefined,
-                h('label', Messages.share_linkAccess),
-                h('br'),
-                UI.createRadio('cp-share-editable', 'cp-share-editable-true',
-                               Messages.share_linkEdit, true, { mark: {tabindex:1} }),
-                UI.createRadio('cp-share-editable', 'cp-share-editable-false',
-                               Messages.share_linkView, false, { mark: {tabindex:1} }),
-                h('br'),
-                h('label', Messages.share_linkOptions),
-                h('br'),
-                UI.createCheckbox('cp-share-embed', Messages.share_linkEmbed, false, { mark: {tabindex:1} }),
-                UI.createCheckbox('cp-share-present', Messages.share_linkPresent, false, { mark: {tabindex:1} }),
-                h('br'),
-                UI.dialog.selectable('', { id: 'cp-share-link-preview', tabindex: 1 }),
-            ]),
-            friendsList
+        var mainShareColumn = h('div.cp-share-column.contains-nav', [
+            h('label', Messages.share_linkAccess),
+            h('br'),
+            UI.createRadio('cp-share-editable', 'cp-share-editable-true',
+                           Messages.share_linkEdit, true, { mark: {tabindex:1} }),
+            UI.createRadio('cp-share-editable', 'cp-share-editable-false',
+                           Messages.share_linkView, false, { mark: {tabindex:1} }),
+            h('br'),
+            h('label', Messages.share_linkOptions),
+            h('br'),
+            UI.createCheckbox('cp-share-embed', Messages.share_linkEmbed, false, { mark: {tabindex:1} }),
+            UI.createCheckbox('cp-share-present', Messages.share_linkPresent, false, { mark: {tabindex:1} }),
+            h('br'),
+            UI.dialog.selectable('', { id: 'cp-share-link-preview', tabindex: 1 }),
         ]);
+        var link = h('div.cp-share-modal' + friendsUIClass);
         if (!hashes.editHash) {
             $(link).find('#cp-share-editable-false').attr('checked', true);
             $(link).find('#cp-share-editable-true').removeAttr('checked').attr('disabled', true);
@@ -904,16 +927,13 @@ define([
             var parsed = Hash.parsePadUrl(href);
             return origin + parsed.getUrl({embed: embed, present: present});
         };
-        $(link).find('#cp-share-link-preview').val(getLinkValue());
-        $(link).find('input[type="radio"], input[type="checkbox"]').on('change', function () {
-            $(link).find('#cp-share-link-preview').val(getLinkValue());
-        });
         var linkButtons = [{
             className: 'cancel',
             name: Messages.cancel,
             onClick: function () {},
             keys: [27]
-        }, {
+        }];
+        var shareButtons = [{
             className: 'primary',
             name: Messages.share_linkCopy,
             onClick: function () {
@@ -933,6 +953,16 @@ define([
             },
             keys: [[13, 'ctrl']]
         }];
+
+        var $link = $(link);
+        $(mainShareColumn).append(UI.dialog.getButtons(shareButtons, config.onClose)).appendTo($link);
+        $(friendsList).appendTo($link);
+
+        $(link).find('#cp-share-link-preview').val(getLinkValue());
+        $(link).find('input[type="radio"], input[type="checkbox"]').on('change', function () {
+            $(link).find('#cp-share-link-preview').val(getLinkValue());
+        });
+
         var frameLink = UI.dialog.customModal(link, {
             buttons: linkButtons,
             onClose: config.onClose,
@@ -1023,21 +1053,22 @@ define([
         var hasFriends = Object.keys(config.friends || {}).length !== 0;
         var friendsList = hasFriends ? createShareWithFriends(config) : undefined;
         var friendsUIClass = hasFriends ? '.cp-share-columns' : '';
-        var link = h('div.cp-share-modal' + friendsUIClass, [
+        var mainShareColumn = h('div.cp-share-column.contains-nav', [
             h('div.cp-share-column', [
                 hasFriends ? h('p', Messages.share_description) : undefined,
                 UI.dialog.selectable('', { id: 'cp-share-link-preview' }),
             ]),
-            friendsList
         ]);
+        var link = h('div.cp-share-modal' + friendsUIClass);
         var getLinkValue = function () { return url; };
-        $(link).find('#cp-share-link-preview').val(getLinkValue());
+        $(mainShareColumn).find('#cp-share-link-preview').val(getLinkValue());
         var linkButtons = [{
             className: 'cancel',
             name: Messages.cancel,
             onClick: function () {},
             keys: [27]
-        }, {
+        }];
+        var shareButtons = [{
             className: 'primary',
             name: Messages.share_linkCopy,
             onClick: function () {
@@ -1047,6 +1078,11 @@ define([
             },
             keys: [13]
         }];
+
+        var $link = $(link);
+        $(mainShareColumn).append(UI.dialog.getButtons(shareButtons, config.onClose)).appendTo($link);
+        $(friendsList).appendTo($link);
+
         var frameLink = UI.dialog.customModal(link, {
             buttons: linkButtons,
             onClose: config.onClose,
@@ -1111,21 +1147,22 @@ define([
         var hasFriends = Object.keys(config.friends || {}).length !== 0;
         var friendsList = hasFriends ? createShareWithFriends(config) : undefined;
         var friendsUIClass = hasFriends ? '.cp-share-columns' : '';
-        var link = h('div.cp-share-modal' + friendsUIClass, [
+        var mainShareColumn = h('div.cp-share-column.contains-nav', [
             h('div.cp-share-column', [
                 h('label', Messages.sharedFolders_share),
                 h('br'),
                 hasFriends ? h('p', Messages.share_description) : undefined,
                 UI.dialog.selectable(url, { id: 'cp-share-link-preview', tabindex: 1 })
-            ]),
-            friendsList
+            ])
         ]);
+        var link = h('div.cp-share-modal' + friendsUIClass);
         var linkButtons = [{
             className: 'cancel',
             name: Messages.cancel,
             onClick: function () {},
             keys: [27]
-        }, {
+        }];
+        var shareButtons = [{
             className: 'primary',
             name: Messages.share_linkCopy,
             onClick: function () {
@@ -1134,7 +1171,81 @@ define([
             },
             keys: [13]
         }];
+        var $link = $(link);
+        $(mainShareColumn).append(UI.dialog.getButtons(shareButtons, config.onClose)).appendTo($link);
+        $(friendsList).appendTo($link);
         return UI.dialog.customModal(link, {buttons: linkButtons});
+    };
+
+    UIElements.createInviteTeamModal = function (config) {
+        var common = config.common;
+        var hasFriends = Object.keys(config.friends || {}).length !== 0;
+
+        if (!hasFriends) {
+            return void UI.alert('No friend to invite'); // XXX
+        }
+        var privateData = common.getMetadataMgr().getPrivateData();
+        var team = privateData.teams[config.teamId];
+        if (!team) { return void UI.warn(Messages.error); }
+
+        var module = config.module || common.makeUniversal('team', { onEvent: function () {} });
+
+        var $div;
+        var refreshButton = function () {
+            if (!$div) { return; }
+            var $modal = $div.closest('.alertify');
+            var $nav = $modal.find('nav');
+            var $btn = $nav.find('button.primary');
+            var selected = $div.find('.cp-share-friend.cp-selected').length;
+            if (selected) {
+                $btn.prop('disabled', '');
+            } else {
+                $btn.prop('disabled', 'disabled');
+            }
+        };
+        var list = UIElements.getFriendsList('Pick the friends you want to invite to the team', { // XXX
+            common: common,
+            friends: config.friends,
+        }, refreshButton);
+        $div = $(list.div);
+        refreshButton();
+
+        var buttons = [{
+            className: 'cancel',
+            name: Messages.cancel,
+            onClick: function () {},
+            keys: [27]
+        }, {
+            className: 'primary',
+            name: 'INVITE', // XXX
+            onClick: function () {
+                var $sel = $div.find('.cp-share-friend.cp-selected');
+                var sel = $sel.toArray();
+                if (!sel.length) { return; }
+
+                sel.forEach(function (el) {
+                    var curve = $(el).attr('data-curve');
+                    module.execCommand('INVITE_TO_TEAM', {
+                        teamId: config.teamId,
+                        user: config.friends[curve]
+                    }, function (obj) {
+                        if (obj && obj.error) {
+                            console.error(obj.error);
+                            return UI.warn(Messages.error);
+                        }
+                    });
+                });
+            },
+            keys: [13]
+        }];
+
+        var content = h('div', [
+            h('h4', 'Invite friends to your team: '+ team.name),
+            list.div
+        ]);
+
+        var modal = UI.dialog.customModal(content, {buttons: buttons});
+        UI.openCustomModal(modal);
     };
 
     UIElements.createButton = function (common, type, rightside, data, callback) {
@@ -1880,6 +1991,84 @@ define([
             });
         }
     };
+    var transformAvatar = function (file, cb) {
+        if (file.type === 'image/gif') { return void cb(file); }
+        var $croppie = $('<div>', {
+            'class': 'cp-app-profile-resizer'
+        });
+
+        if (typeof ($croppie.croppie) !== "function") {
+            console.warn('fuck');
+            return void cb(file);
+        }
+
+        var todo = function () {
+            UI.confirm($croppie[0], function (yes) {
+                if (!yes) { return; }
+                $croppie.croppie('result', {
+                    type: 'blob',
+                    size: {width: 300, height: 300}
+                }).then(function(blob) {
+                    blob.lastModifiedDate = new Date();
+                    blob.name = 'avatar';
+                    cb(blob);
+                });
+            });
+        };
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            $croppie.croppie({
+                url: e.target.result,
+                viewport: { width: 100, height: 100 },
+                boundary: { width: 400, height: 300 },
+            });
+            todo();
+        };
+        reader.readAsDataURL(file);
+    };
+    UIElements.addAvatar = function (common, cb) {
+        var AVATAR_SIZE_LIMIT = 0.5;
+        var allowedMediaTypes = [
+            'image/png',
+            'image/jpeg',
+            'image/jpg',
+            'image/gif',
+        ];
+        var fmConfig = {
+            noHandlers: true,
+            noStore: true,
+            body: $('body'),
+            onUploaded: cb
+        };
+        var FM = common.createFileManager(fmConfig);
+        var accepted = ".gif,.jpg,.jpeg,.png";
+        var data = {
+            FM: FM,
+            filter: function (file) {
+                var sizeMB = Util.bytesToMegabytes(file.size);
+                var type = file.type;
+                // We can't resize .gif so we have to display an error if it is too big
+                if (sizeMB > AVATAR_SIZE_LIMIT && type === 'image/gif') {
+                    UI.log(Messages._getKey('profile_uploadSizeError', [
+                        Messages._getKey('formattedMB', [AVATAR_SIZE_LIMIT])
+                    ]));
+                    return false;
+                }
+                // Display an error if the image type is not allowed
+                if (allowedMediaTypes.indexOf(type) === -1) {
+                    UI.log(Messages._getKey('profile_uploadTypeError', [
+                        accepted.split(',').join(', ')
+                    ]));
+                    return false;
+                }
+                return true;
+            },
+            transformer: transformAvatar,
+            accept: accepted
+        };
+        return data;
+    };
 
     /*  Create a usage bar which keeps track of how much storage space is used
         by your CryptDrive. The getPinnedUsage RPC is one of the heavier calls,
@@ -1888,8 +2077,9 @@ define([
         If changes are made to your drive in the interim, they will trigger an
         update.
     */
+    // NOTE: The callback must stay SYNCHRONOUS
     var LIMIT_REFRESH_RATE = 30000; // milliseconds
-    UIElements.createUsageBar = function (common, cb) {
+    UIElements.createUsageBar = function (common, teamId, cb) {
         if (AppConfig.hideUsageBar) { return cb('USAGE_BAR_HIDDEN'); }
         if (!common.isLoggedIn()) { return cb("NOT_LOGGED_IN"); }
         // getPinnedUsage updates common.account.usage, and other values
@@ -1971,15 +2161,20 @@ define([
         };
 
         var updateUsage = Util.notAgainForAnother(function () {
-            common.getPinUsage(todo);
+            common.getPinUsage(teamId, todo);
         }, LIMIT_REFRESH_RATE);
 
-        setInterval(function () {
+        var interval = setInterval(function () {
             updateUsage();
         }, LIMIT_REFRESH_RATE * 3);
 
         updateUsage();
         cb(null, $container);
+        return {
+            stop: function () {
+                clearInterval(interval);
+            }
+        };
     };
 
     // Create a button with a dropdown menu
@@ -2479,6 +2674,7 @@ define([
         var i = 0;
         var types = AppConfig.availablePadTypes.filter(function (p) {
             if (p === 'drive') { return; }
+            if (p === 'team') { return; }
             if (p === 'contacts') { return; }
             if (p === 'todo') { return; }
             if (p === 'file') { return; }
@@ -2650,7 +2846,6 @@ define([
         var type = metadataMgr.getMetadataLazy().type;
         var fromFileData = privateData.fromFileData;
 
-
         var $body = $('body');
         var $creationContainer = $('<div>', { id: 'cp-creation-container' }).appendTo($body);
         var urlArgs = (Config.requireConf && Config.requireConf.urlArgs) || '';
@@ -2682,6 +2877,64 @@ define([
             });
             return q;
         };
+
+        // Team pad
+        var team;
+        var teamExists = privateData.teams && Object.keys(privateData.teams).length;
+        var $teamBlock;
+        // storeInTeam can be
+        // * a team ID ==> store in the team drive, and the team will be the owner
+        // * -1 ==> store in the user drive, and the user will be the owner
+        // * undefined ==> ask
+        if (teamExists && privateData.enableTeams) {
+            var teamOptions = Object.keys(privateData.teams).map(function (teamId) {
+                var t = privateData.teams[teamId];
+                return {
+                    tag: 'a',
+                    attributes: {
+                        'data-value': teamId,
+                        'href': '#'
+                    },
+                    content: 'TEAM: <b>' + t.name + '</b>' // XXX
+                };
+            });
+            teamOptions.unshift({
+                tag: 'a',
+                attributes: {
+                    'data-value': '-1',
+                    'href': '#'
+                },
+                content: Messages.settings_cat_drive
+            });
+            teamOptions.unshift({
+                tag: 'a',
+                attributes: {
+                    'data-value': '',
+                    'href': '#'
+                },
+                content: '&nbsp;'
+            });
+            var teamDropdownConfig = {
+                text: "&nbsp;", // Button initial text
+                options: teamOptions, // Entries displayed in the menu
+                isSelect: true,
+                common: common
+            };
+            $teamBlock = UIElements.createDropdown(teamDropdownConfig);
+            $teamBlock.find('a').click(function () {
+                var id = $(this).attr('data-value');
+                $teamBlock.setValue(id);
+            });
+            team = h('div.cp-creation-team', [
+                'Store in', // XXX
+                $teamBlock[0],
+                createHelper('#', "The pad will be stored in your team's drive. If this is an owned pad, it will be owned by the team.") // XXX
+            ]);
+            if (privateData.storeInTeam) {
+                $teamBlock.setValue(privateData.storeInTeam);
+            }
+        }
+
 
         // Owned pads
         // Default is Owned pad
@@ -2747,6 +3000,7 @@ define([
         var $create = $(createDiv);
 
         $(h('div#cp-creation-form', [
+            team,
             owned,
             expire,
             password,
@@ -2952,12 +3206,19 @@ define([
 
             var $template = $creation.find('.cp-creation-template-selected');
             var templateId = $template.data('id') || undefined;
+            // Team
+            var team;
+            if ($teamBlock && $teamBlock.getValue()) {
+                team = privateData.teams[$teamBlock.getValue()] || {};
+                team.id = Number($teamBlock.getValue());
+            }
 
             return {
                 owned: ownedVal,
                 password: passwordVal,
                 expire: expireVal,
-                templateId: templateId
+                templateId: templateId,
+                team: team
             };
         };
         var create = function () {
@@ -3300,27 +3561,7 @@ define([
         var content = h('div.cp-share-modal', [
             setHTML(h('p'), text)
         ]);
-        var buttons = [{
-            name: Messages.friendRequest_later,
-            onClick: function () {},
-            keys: [27]
-        }, {
-            className: 'primary',
-            name: Messages.friendRequest_accept,
-            onClick: function () {
-                todo(true);
-            },
-            keys: [13]
-        }, {
-            className: 'primary',
-            name: Messages.friendRequest_decline,
-            onClick: function () {
-                todo(false);
-            },
-            keys: [[13, 'ctrl']]
-        }];
-        var modal = UI.dialog.customModal(content, {buttons: buttons});
-        UI.openCustomModal(modal);
+        UI.proposal(content, todo);
     };
 
     UIElements.displayAddOwnerModal = function (common, data) {
@@ -3445,27 +3686,84 @@ define([
             });
         };
 
-        var buttons = [{
-            name: Messages.friendRequest_later,
-            onClick: function () {},
-            keys: [27]
-        }, {
-            className: 'primary',
-            name: Messages.friendRequest_accept,
-            onClick: function () {
-                todo(true);
-            },
-            keys: [13]
-        }, {
-            className: 'primary',
-            name: Messages.friendRequest_decline,
-            onClick: function () {
-                todo(false);
-            },
-            keys: [[13, 'ctrl']]
-        }];
-        var modal = UI.dialog.customModal(div, {buttons: buttons});
-        UI.openCustomModal(modal);
+        UI.proposal(div, todo);
+    };
+
+    UIElements.getVerifiedFriend = function (common, curve, name) {
+        var priv = common.getMetadataMgr().getPrivateData();
+        var verified = h('p');
+        var $verified = $(verified);
+
+        if (priv.friends && priv.friends[curve]) {
+            $verified.addClass('cp-notifications-requestedit-verified');
+            var f = priv.friends[curve];
+            $verified.append(h('span.fa.fa-certificate'));
+            var $avatar = $(h('span.cp-avatar')).appendTo($verified);
+            $verified.append(h('p', Messages._getKey('requestEdit_fromFriend', [f.displayName])));
+            common.displayAvatar($avatar, f.avatar, f.displayName);
+        } else {
+            $verified.append(Messages._getKey('requestEdit_fromStranger', [name]));
+        }
+        return verified;
+    };
+
+    UIElements.displayInviteTeamModal = function (common, data) {
+        var priv = common.getMetadataMgr().getPrivateData();
+        var user = common.getMetadataMgr().getUserData();
+        var msg = data.content.msg;
+
+        var name = Util.fixHTML(msg.content.user.displayName) || Messages.anonymous;
+        var teamName = Util.fixHTML(Util.find(msg, ['content', 'team', 'metadata', 'name']) || '');
+
+        var verified = UIElements.getVerifiedFriend(common, msg.author, name);
+
+        //var text = Messages._getKey('', [name, title]); // XXX
+        var text = name + " has invited you to join the team <b>" + teamName +"</b>";
+
+        var div = h('div', [
+            UI.setHTML(h('p'), text),
+            verified
+        ]);
+
+        var module = common.makeUniversal('team');
+
+        var answer = function (yes) {
+            common.mailbox.sendTo("INVITE_TO_TEAM_ANSWER", {
+                answer: yes,
+                teamChannel: msg.content.team.channel,
+                user: {
+                    displayName: user.name,
+                    avatar: user.avatar,
+                    profile: user.profile,
+                    notifications: user.notifications,
+                    curvePublic: user.curvePublic,
+                    edPublic: priv.edPublic
+                }
+            }, {
+                channel: msg.content.user.notifications,
+                curvePublic: msg.content.user.curvePublic
+            });
+            common.mailbox.dismiss(data, function (err) {
+                console.log(err);
+            });
+        };
+        var todo = function (yes) {
+            if (yes) {
+                // ACCEPT
+                module.execCommand('JOIN_TEAM', {
+                    team: msg.content.team
+                }, function (obj) {
+                    if (obj && obj.error) { return void UI.warn(Messages.error); }
+                    answer(true);
+                });
+                return;
+            }
+
+            // DECLINE
+            answer(false);
+        };
+
+        UI.proposal(div, todo);
     };
 
     return UIElements;

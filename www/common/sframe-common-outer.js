@@ -134,7 +134,6 @@ define([
                         });
                     }
                 }), {
-                    messenger: cfg.messaging,
                     driveEvents: cfg.driveEvents
                 });
             }));
@@ -322,10 +321,12 @@ define([
                         password: password,
                         channel: secret.channel,
                         enableSF: localStorage.CryptPad_SF === "1", // TODO to remove when enabled by default
+                        enableTeams: localStorage.CryptPad_teams === "1",
                         devMode: localStorage.CryptPad_dev === "1",
                         fromFileData: Cryptpad.fromFileData ? {
                             title: Cryptpad.fromFileData.title
                         } : undefined,
+                        storeInTeam: Cryptpad.initialTeam || (Cryptpad.initialPath ? -1 : undefined)
                     };
                     if (window.CryptPad_newSharedFolder) {
                         additionalPriv.newSharedFolder = window.CryptPad_newSharedFolder;
@@ -377,7 +378,7 @@ define([
                 });
 
                 sframeChan.on('Q_GET_PIN_LIMIT_STATUS', function (data, cb) {
-                    Cryptpad.isOverPinLimit(function (e, overLimit, limits) {
+                    Cryptpad.isOverPinLimit(null, function (e, overLimit, limits) {
                         cb({
                             error: e,
                             overLimit: overLimit,
@@ -455,6 +456,10 @@ define([
             sframeChan.on('EV_SET_TAB_TITLE', function (newTabTitle) {
                 currentTabTitle = newTabTitle;
                 setDocumentTitle();
+            });
+
+            sframeChan.on('Q_STORE_IN_TEAM', function (data, cb) {
+                Cryptpad.storeInTeam(data, cb);
             });
 
             sframeChan.on('EV_SET_HASH', function (hash) {
@@ -682,7 +687,11 @@ define([
             });
 
             sframeChan.on('Q_SESSIONSTORAGE_PUT', function (data, cb) {
-                sessionStorage[data.key] = data.value;
+                if (typeof (data.value) === "undefined") {
+                    delete sessionStorage[data.key];
+                } else {
+                    sessionStorage[data.key] = data.value;
+                }
                 cb();
             });
 
@@ -715,22 +724,27 @@ define([
                     };
                     var updateProgress = function (progressValue) {
                         sendEvent({
+                            uid: data.uid,
                             progress: progressValue
                         });
                     };
                     var onComplete = function (href) {
                         sendEvent({
                             complete: true,
+                            uid: data.uid,
                             href: href
                         });
                     };
                     var onError = function (e) {
                         sendEvent({
+                            uid: data.uid,
                             error: e
                         });
                     };
                     var onPending = function (cb) {
-                        sframeChan.query('Q_CANCEL_PENDING_FILE_UPLOAD', null, function (err, data) {
+                        sframeChan.query('Q_CANCEL_PENDING_FILE_UPLOAD', {
+                            uid: data.uid
+                        }, function (err, data) {
                             if (data) {
                                 cb();
                             }
@@ -891,8 +905,8 @@ define([
                 }
             });
 
-            sframeChan.on('Q_PIN_GET_USAGE', function (data, cb) {
-                Cryptpad.isOverPinLimit(function (err, overLimit, data) {
+            sframeChan.on('Q_PIN_GET_USAGE', function (teamId, cb) {
+                Cryptpad.isOverPinLimit(teamId, function (err, overLimit, data) {
                     cb({
                         error: err,
                         data: data
@@ -1082,19 +1096,16 @@ define([
                 Notifier.getPermission();
 
                 sframeChan.on('Q_CHAT_OPENPADCHAT', function (data, cb) {
-                    Cryptpad.messenger.execCommand({
-                        cmd: 'OPEN_PAD_CHAT',
+                    Cryptpad.universal.execCommand({
+                        type: 'messenger',
                         data: {
-                            channel: data,
-                            secret: secret
+                            cmd: 'OPEN_PAD_CHAT',
+                            data: {
+                                channel: data,
+                                secret: secret
+                            }
                         }
                     }, cb);
-                });
-                sframeChan.on('Q_CHAT_COMMAND', function (data, cb) {
-                    Cryptpad.messenger.execCommand(data, cb);
-                });
-                Cryptpad.messenger.onEvent.reg(function (data) {
-                    sframeChan.event('EV_CHAT_EVENT', data);
                 });
             }
 
@@ -1201,7 +1212,13 @@ define([
                 var rtConfig = {
                     metadata: {}
                 };
-                if (data.owned) {
+                if (data.team) {
+                    Cryptpad.initialTeam = data.team.id;
+                }
+                if (data.owned && data.team && data.team.edPublic) {
+                    rtConfig.metadata.owners = [data.team.edPublic];
+                    // XXX Teams mailbox
+                } else if (data.owned) {
                     rtConfig.metadata.owners = [edPublic];
                     rtConfig.metadata.mailbox = {};
                     rtConfig.metadata.mailbox[edPublic] = Utils.crypto.encrypt(JSON.stringify({

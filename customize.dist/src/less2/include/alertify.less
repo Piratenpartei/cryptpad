@@ -30,7 +30,7 @@
     // These show only once
 
     .alertify-logs {
-        z-index: 10000; // alertify logs
+        z-index: 100001; // alertify logs should be in front of alertify modals
         @media print {
             visibility: hidden;
         }
@@ -314,6 +314,16 @@
                 &::-moz-focus-inner {
                     border: 0;
                 }
+
+                &:disabled {
+                    cursor: not-allowed !important;
+                    background-color: @colortheme_alertify-disabled;
+                    color: @colortheme_alertify-disabled-text;
+                    border-color: @colortheme_alertify-disabled-border;
+                    &:hover, &:active {
+                        background-color: @colortheme_alertify-disabled;
+                    }
+                }
             }
 
             button.btn {
@@ -329,7 +339,7 @@
     .alertify-logs {
 
         position: fixed;
-        z-index: 99999; // alertify logs
+        z-index: 100001; // alertify logs (just in front of alertify modals
 
         &.bottom, &:not(.top) {
             bottom: 16px;
@@ -423,6 +433,11 @@
         }
     }
     div.wide {
+        div.alertify-tabs {
+            p.msg:not(:last-child) {
+                border-bottom: 1px solid @alertify-fore;
+            }
+        }
         .cp-share-columns {
             display: flex;
             flex-flow: row;
@@ -430,10 +445,29 @@
             & > .cp-share-column {
                 width: 50%;
                 padding: 0 10px;
+                position: relative;
+                &.contains-nav {
+                    padding-bottom: 50px;
+                }
+                nav {
+                    position: absolute;
+                    bottom: 0;
+                    right: 0;
+                }
+                &:first-child {
+                    border-right: 1px solid @alertify-fore;
+                }
             }
         }
+        .cp-ownership {
+            & > label {
+                font-weight: bold;
+            }
+        }
+    }
+    .cp-share-column {
         .cp-share-grid, .cp-share-list {
-            .avatar_main(50px);
+            .avatar_main(40px);
             display: flex;
             justify-content: space-between;
             flex-wrap: wrap;
@@ -486,6 +520,9 @@
                 color: @colortheme_alertify-primary-text;
                 order: -1 !important;
             }
+            .cp-share-friend-avatar {
+                min-height: 40px;
+            }
             .cp-share-friend-name {
                 overflow: hidden;
                 white-space: nowrap;
@@ -496,11 +533,6 @@
             border: 1px solid @colortheme_alertify-primary;
             &.cp-fake-friend {
                 visibility: hidden;
-            }
-        }
-        .cp-ownership {
-            & > label {
-                font-weight: bold;
             }
         }
     }

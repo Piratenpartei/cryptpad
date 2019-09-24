@@ -9,11 +9,13 @@ define([
     '/common/common-feedback.js',
     '/common/common-realtime.js',
     '/common/common-messaging.js',
-    '/common/common-messenger.js',
+    '/common/outer/sharedfolder.js',
     '/common/outer/cursor.js',
     '/common/outer/onlyoffice.js',
     '/common/outer/mailbox.js',
     '/common/outer/profile.js',
+    '/common/outer/team.js',
+    '/common/outer/messenger.js',
     '/common/outer/network-config.js',
     '/customize/application_config.js',
 
@@ -23,8 +25,10 @@ define([
     '/bower_components/chainpad-listmap/chainpad-listmap.js',
     '/bower_components/nthen/index.js',
     '/bower_components/saferphore/index.js',
-], function (Sortify, UserObject, ProxyManager, Migrate, Hash, Util, Constants, Feedback, Realtime, Messaging, Messenger,
-             Cursor, OnlyOffice, Mailbox, Profile, NetConfig, AppConfig,
+], function (Sortify, UserObject, ProxyManager, Migrate, Hash, Util, Constants, Feedback,
+             Realtime, Messaging,
+             SF, Cursor, OnlyOffice, Mailbox, Profile, Team, Messenger,
+             NetConfig, AppConfig,
              Crypto, ChainPad, CpNetflux, Listmap, nThen, Saferphore) {
 
     var create = function () {
@@ -40,45 +44,77 @@ define([
             modules: {}
         };
 
-        var onSync = function (cb) {
+        var getStore = function (teamId) {
+            if (!teamId) { return store; }
+            try {
+                var teams = store.modules['team'];
+                var team = teams.getTeam(teamId);
+                if (!team) {
+                    console.error('Team not found', teamId);
+                    return;
+                }
+                return team;
+            } catch (e) {
+                console.error(e);
+                console.error('Team not found', teamId);
+                return;
+            }
+        };
+
+        var onSync = Store.onSync = function (teamId, cb) {
+            var s = getStore(teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
             nThen(function (waitFor) {
-                Realtime.whenRealtimeSyncs(store.realtime, waitFor());
-                if (store.sharedFolders) {
-                    for (var k in store.sharedFolders) {
-                        Realtime.whenRealtimeSyncs(store.sharedFolders[k].realtime, waitFor());
+                Realtime.whenRealtimeSyncs(s.realtime, waitFor());
+                if (s.sharedFolders && typeof (s.sharedFolders) === "object") {
+                    for (var k in s.sharedFolders) {
+                        Realtime.whenRealtimeSyncs(s.sharedFolders[k].realtime, waitFor());
                     }
                 }
             }).nThen(function () { cb(); });
         };
 
-        Store.get = function (clientId, key, cb) {
-            cb(Util.find(store.proxy, key));
+        // OKTEAM
+        Store.get = function (clientId, data, cb) {
+            var s = getStore(data.teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            cb(Util.find(s.proxy, data.key));
         };
         Store.set = function (clientId, data, cb) {
+            var s = getStore(data.teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
             var path = data.key.slice();
             var key = path.pop();
-            var obj = Util.find(store.proxy, path);
+            var obj = Util.find(s.proxy, path);
             if (!obj || typeof(obj) !== "object") { return void cb({error: 'INVALID_PATH'}); }
             if (typeof data.value === "undefined") {
                 delete obj[key];
             } else {
                 obj[key] = data.value;
             }
+            if (!data.teamId) {
             broadcast([clientId], "UPDATE_METADATA");
-            if (Array.isArray(path) && path[0] === 'profile' && store.messenger) {
-                Messaging.updateMyData(store);
+                if (Array.isArray(path) && path[0] === 'profile' && store.messenger) {
+                    Messaging.updateMyData(store);
+                }
             }
-            onSync(cb);
+            onSync(data.teamId, cb);
         };
 
-        Store.getSharedFolder = function (clientId, id, cb) {
-            if (store.manager.folders[id]) {
-                return void cb(store.manager.folders[id].proxy);
+        Store.getSharedFolder = function (clientId, data, cb) {
+            var s = getStore(data.teamId);
+            var id = data.id;
+            if (!s || !s.manager) { return void cb({ error: 'ENOTFOUND' }); }
+            if (s.manager.folders[id]) {
+                // If it is loaded, return the shared folder proxy
+                return void cb(s.manager.folders[id].proxy);
             } else {
-                var shared = Util.find(store.proxy, ['drive', UserObject.SHARED_FOLDERS]) || {};
+                // Otherwise, check if we know this shared folder
+                var shared = Util.find(s.proxy, ['drive', UserObject.SHARED_FOLDERS]) || {};
                 if (shared[id]) {
-                    return void Store.loadSharedFolder(id, shared[id], function () {
-                        cb(store.manager.folders[id].proxy);
+                    // If we know the shared folder, load it and return the proxy
+                    return void Store.loadSharedFolder(data.teamId, id, shared[id], function () {
+                        cb(s.manager.folders[id].proxy);
                     });
                 }
             }
@@ -87,16 +123,17 @@ define([
 
         Store.restoreSharedFolder = function (clientId, data, cb) {
             if (!data.sfId || !data.drive) { return void cb({error:'EINVAL'}); }
-            if (store.sharedFolders[data.sfId]) {
+            var s = getStore(data.teamId);
+            if (s.sharedFolders[data.sfId]) {
                 Object.keys(data.drive).forEach(function (k) {
-                    store.sharedFolders[data.sfId].proxy[k] = data.drive[k];
+                    s.sharedFolders[data.sfId].proxy[k] = data.drive[k];
                 });
-                Object.keys(store.sharedFolders[data.sfId].proxy).forEach(function (k) {
+                Object.keys(s.sharedFolders[data.sfId].proxy).forEach(function (k) {
                     if (data.drive[k]) { return; }
-                    delete store.sharedFolders[data.sfId].proxy[k];
+                    delete s.sharedFolders[data.sfId].proxy[k];
                 });
             }
-            onSync(cb);
+            onSync(data.teamId, cb);
         };
 
         Store.hasSigningKeys = function () {
@@ -190,10 +227,11 @@ define([
         var account = {};
 
         Store.getPinnedUsage = function (clientId, data, cb) {
-            if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+            var s = getStore(data && data.teamId);
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
 
-            store.rpc.getFileListSize(function (err, bytes) {
-                if (typeof(bytes) === 'number') {
+            s.rpc.getFileListSize(function (err, bytes) {
+                if (!s.id && typeof(bytes) === 'number') {
                     account.usage = bytes;
                 }
                 cb({bytes: bytes});
@@ -213,23 +251,26 @@ define([
         };
         // Get current user limits
         Store.getPinLimit = function (clientId, data, cb) {
-            if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+            var s = getStore(data && data.teamId);
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
 
             var ALWAYS_REVALIDATE = true;
             if (ALWAYS_REVALIDATE || typeof(account.limit) !== 'number' ||
                 typeof(account.plan) !== 'string' ||
                 typeof(account.note) !== 'string') {
-                return void store.rpc.getLimit(function (e, limit, plan, note) {
+                return void s.rpc.getLimit(function (e, limit, plan, note) {
                     if (e) { return void cb({error: e}); }
-                    account.limit = limit;
-                    account.plan = plan;
-                    account.note = note;
-                    cb(account);
+                    var data = s.id ? {} : account;
+                    data.limit = limit;
+                    data.plan = plan;
+                    data.note = note;
+                    cb(data);
                 });
             }
             cb(account);
         };
 
+        // clearOwnedChannel is only used for private chat at the moment
         Store.clearOwnedChannel = function (clientId, data, cb) {
             if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
             store.rpc.clearOwnedChannel(data, function (err) {
@@ -238,22 +279,26 @@ define([
         };
 
         Store.removeOwnedChannel = function (clientId, data, cb) {
-            if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
-
             // "data" used to be a string (channelID), now it can also be an object
             // data.force tells us we can safely remove the drive ID
             var channel = data;
             var force = false;
+            var teamId;
             if (data && typeof(data) === "object") {
                 channel = data.channel;
                 force = data.force;
+                teamId = data.teamId;
             }
 
             if (channel === storeChannel && !force) {
                 return void cb({error: 'User drive removal blocked!'});
             }
 
-            store.rpc.removeOwnedChannel(channel, function (err) {
+            var s = getStore(teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+
+            s.rpc.removeOwnedChannel(channel, function (err) {
                 cb({error:err});
             });
         };
@@ -280,40 +325,49 @@ define([
         };
 
         Store.uploadComplete = function (clientId, data, cb) {
-            if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+            var s = getStore(data.teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
             if (data.owned) {
                 // Owned file
-                store.rpc.ownedUploadComplete(data.id, function (err, res) {
+                s.rpc.ownedUploadComplete(data.id, function (err, res) {
                     if (err) { return void cb({error:err}); }
                     cb(res);
                 });
                 return;
             }
             // Normal upload
-            store.rpc.uploadComplete(data.id, function (err, res) {
+            s.rpc.uploadComplete(data.id, function (err, res) {
                 if (err) { return void cb({error:err}); }
                 cb(res);
             });
         };
 
         Store.uploadStatus = function (clientId, data, cb) {
-            if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
-            store.rpc.uploadStatus(data.size, function (err, res) {
+            var s = getStore(data.teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+            s.rpc.uploadStatus(data.size, function (err, res) {
                 if (err) { return void cb({error:err}); }
                 cb(res);
             });
         };
 
         Store.uploadCancel = function (clientId, data, cb) {
-            if (!store.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
-            store.rpc.uploadCancel(data.size, function (err, res) {
+            var s = getStore(data.teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+            s.rpc.uploadCancel(data.size, function (err, res) {
                 if (err) { return void cb({error:err}); }
                 cb(res);
             });
         };
 
         Store.uploadChunk = function (clientId, data, cb) {
-            store.rpc.send.unauthenticated('UPLOAD', data.chunk, function (e, msg) {
+            var s = getStore(data.teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            if (!s.rpc) { return void cb({error: 'RPC_NOT_READY'}); }
+            s.rpc.send.unauthenticated('UPLOAD', data.chunk, function (e, msg) {
                 cb({
                     error: e,
                     msg: msg
@@ -339,7 +393,7 @@ define([
             });
         };
 
-        Store.initRpc = function (clientId, data, cb) {
+        var initRpc = function (clientId, data, cb) {
             if (!store.loggedIn) { return cb(); }
             if (store.rpc) { return void cb(account); }
             require(['/common/pinpad.js'], function (Pinpad) {
@@ -432,7 +486,7 @@ define([
             });
         };
 
-        Store.initAnonRpc = function (clientId, data, cb) {
+        var initAnonRpc = function (clientId, data, cb) {
             if (store.anon_rpc) { return void cb(); }
             require([
                 '/common/rpc.js',
@@ -473,6 +527,7 @@ define([
         // Get the metadata for sframe-common-outer
         Store.getMetadata = function (clientId, data, cb) {
             var disableThumbnails = Util.find(store.proxy, ['settings', 'general', 'disableThumbnails']);
+            var teams = store.modules['team']  && store.modules['team'].getTeamsData();
             var metadata = {
                 // "user" is shared with everybody via the userlist
                 user: {
@@ -494,7 +549,8 @@ define([
                     isDriveOwned: Boolean(Util.find(store, ['driveMetadata', 'owners'])),
                     support: Util.find(store.proxy, ['mailboxes', 'support', 'channel']),
                     pendingFriends: store.proxy.friends_pending || {},
-                    supportPrivateKey: Util.find(store.proxy, ['mailboxes', 'supportadmin', 'keys', 'curvePrivate'])
+                    supportPrivateKey: Util.find(store.proxy, ['mailboxes', 'supportadmin', 'keys', 'curvePrivate']),
+                    teams: teams
                 }
             };
             cb(JSON.parse(JSON.stringify(metadata)));
@@ -526,12 +582,17 @@ define([
             if (data.expire) { pad.expire = data.expire; }
             if (data.password) { pad.password = data.password; }
             if (data.channel || secret) { pad.channel = data.channel || secret.channel; }
-            store.manager.addPad(data.path, pad, function (e) {
+
+            var s = getStore(data.teamId);
+            if (!s || !s.manager) { return void cb({ error: 'ENOTFOUND' }); }
+
+            s.manager.addPad(data.path, pad, function (e) {
                 if (e) { return void cb({error: e}); }
-                sendDriveEvent('DRIVE_CHANGE', {
+                var send = data.teamId ? s.sendEvent : sendDriveEvent;
+                send('DRIVE_CHANGE', {
                     path: ['drive', UserObject.FILES_DATA]
                 }, clientId);
-                onSync(cb);
+                onSync(data.teamId, cb);
             });
         };
 
@@ -674,7 +735,7 @@ define([
             store.proxy[Constants.displayNameKey] = value;
             broadcast([clientId], "UPDATE_METADATA");
             Messaging.updateMyData(store);
-            onSync(cb);
+            onSync(null, cb);
         };
 
         // Reset the drive part of the userObject (from settings)
@@ -686,7 +747,7 @@ define([
                 sendDriveEvent('DRIVE_CHANGE', {
                     path: ['drive', 'filesData']
                 }, clientId);
-                onSync(cb);
+                onSync(null, cb);
             });
         };
 
@@ -697,18 +758,45 @@ define([
          *   - attr (Array)
          *   - value (String)
          */
+        var getAllStores = function () {
+            var stores = [store];
+            var teamModule = store.modules['team'];
+            if (teamModule) {
+                var teams = teamModule.getTeams().map(function (id) {
+                    return teamModule.getTeam(id);
+                });
+                Array.prototype.push.apply(stores, teams);
+            }
+            return stores;
+        };
         Store.setPadAttribute = function (clientId, data, cb) {
-            store.manager.setPadAttribute(data, function () {
-                sendDriveEvent('DRIVE_CHANGE', {
-                    path: ['drive', UserObject.FILES_DATA]
-                }, clientId);
-                onSync(cb);
-            });
+            nThen(function (waitFor) {
+                getAllStores().forEach(function (s) {
+                    s.manager.setPadAttribute(data, waitFor(function () {
+                        var send = s.id ? s.sendEvent : sendDriveEvent;
+                        send('DRIVE_CHANGE', {
+                            path: ['drive', UserObject.FILES_DATA]
+                        }, clientId);
+                        onSync(s.id, waitFor());
+                    }));
+                });
+            }).nThen(cb); // cb when all managers are synced
         };
         Store.getPadAttribute = function (clientId, data, cb) {
-            store.manager.getPadAttribute(data, function (err, val) {
-                if (err) { return void cb({error: err}); }
-                cb(val);
+            var res = {};
+            nThen(function (waitFor) {
+                getAllStores().forEach(function (s) {
+                    s.manager.getPadAttribute(data, waitFor(function (err, val) {
+                        if (err) { return; }
+                        if (!val || typeof(val) !== "object") { return void console.error("Not an object!"); }
+                        if (!res.value || res.atime < val.atime) {
+                            res.atime = val.atime;
+                            res.value = val.value;
+                        }
+                    }));
+                });
+            }).nThen(function () {
+                cb(res.value);
             });
         };
 
@@ -743,7 +831,7 @@ define([
                 var object = getAttributeObject(data.attr);
                 object.obj[object.key] = data.value;
             } catch (e) { return void cb({error: e}); }
-            onSync(function () {
+            onSync(null, function () {
                 cb();
                 broadcast([], "UPDATE_METADATA");
             });
@@ -758,51 +846,92 @@ define([
 
         // Tags
         Store.listAllTags = function (clientId, data, cb) {
-            cb(store.manager.getTagsList());
+            var tags = {};
+            getAllStores().forEach(function (s) {
+                var l = s.manager.getTagsList();
+                Object.keys(l).forEach(function (tag) {
+                    tags[tag] = (tags[tag] || 0) + l[tag];
+                });
+            });
+            cb(tags);
         };
 
         // Templates
+        // Note: maybe we should get templates "per team" to avoid creating a document with a template
+        // from a different team
         Store.getTemplates = function (clientId, data, cb) {
             // No templates in shared folders: we don't need the manager here
-            var templateFiles = store.userObject.getFiles(['template']);
             var res = [];
-            templateFiles.forEach(function (f) {
-                var data = store.userObject.getFileData(f);
-                res.push(JSON.parse(JSON.stringify(data)));
+            var channels = [];
+            getAllStores().forEach(function (s) {
+                var templateFiles = s.userObject.getFiles(['template']);
+                templateFiles.forEach(function (f) {
+                    var data = s.userObject.getFileData(f);
+                    // Don't push duplicates
+                    if (channels.indexOf(data.channel) !== -1) { return; }
+                    channels.push(data.channel);
+                    // Puhs a copy of the data
+                    res.push(JSON.parse(JSON.stringify(data)));
+                });
             });
             cb(res);
         };
         Store.incrementTemplateUse = function (clientId, href) {
             // No templates in shared folders: we don't need the manager here
-            store.userObject.getPadAttribute(href, 'used', function (err, data) {
-                // This is a not critical function, abort in case of error to make sure we won't
-                // create any issue with the user object or the async store
-                if (err) { return; }
-                var used = typeof data === "number" ? ++data : 1;
-                store.userObject.setPadAttribute(href, 'used', used);
+            getAllStores().forEach(function (s) {
+                s.userObject.getPadAttribute(href, 'used', function (err, data) {
+                    // This is a not critical function, abort in case of error to make sure we won't
+                    // create any issue with the user object or the async store
+                    if (err) { return; }
+                    var used = typeof data === "number" ? ++data : 1;
+                    s.userObject.setPadAttribute(href, 'used', used);
+                });
             });
         };
 
         // Pads
         Store.isOnlyInSharedFolder = function (clientId, channel, cb) {
-            var res = store.manager.findChannel(channel);
+            var res = false;
 
-            // A pad is only in a shared worker if:
-            // 1. this pad is in at least one proxy
-            // 2. no proxy containing this pad is the main drive
-            return cb (res.length && !res.some(function (obj) {
-                // Main drive doesn't have an fId (folder ID)
-                return !obj.fId;
-            }));
+            // The main drive doesn't have an fId (folder ID)
+            var isInMainDrive = function (obj) { return !obj.fId; };
+
+            // A pad is only in a shared folder if it is in one of our managers
+            // AND if if it not in any "main" drive
+            getAllStores().some(function (s) {
+                var _res = s.manager.findChannel(channel);
+
+                // Not in this manager: go the the next one
+                if (!_res.length) { return; }
+
+                // if the pad is in the main drive, cb(false)
+                if (_res.some(isInMainDrive)) {
+                    res = false;
+                    return true;
+                }
+
+                // Otherwise the pad is only in a shared folder in this manager:
+                // set the result to true and check the next manager
+                res = true;
+            });
+
+            return cb (res);
         };
         Store.moveToTrash = function (clientId, data, cb) {
             var href = Hash.getRelativeHref(data.href);
-            store.userObject.forget(href);
-            sendDriveEvent('DRIVE_CHANGE', {
-                path: ['drive', UserObject.FILES_DATA]
-            }, clientId);
-            onSync(cb);
+            nThen(function (waitFor) {
+                getAllStores().forEach(function (s) {
+                    var deleted = s.userObject.forget(href);
+                    if (!deleted) { return; }
+                    var send = s.id ? s.sendEvent : sendDriveEvent;
+                    send('DRIVE_CHANGE', {
+                        path: ['drive', UserObject.FILES_DATA]
+                    }, clientId);
+                    onSync(s.id, waitFor());
+                });
+            }).nThen(cb);
         };
+        // XXX Teams. encrypted href...
         Store.setPadTitle = function (clientId, data, cb) {
             var title = data.title;
             var href = data.href;
@@ -833,9 +962,41 @@ define([
                 expire = data.expire;
             }
 
-            var datas = store.manager.findChannel(channel);
-            var contains = datas.length !== 0;
-            datas.forEach(function (obj) {
+            var storeLocally = data.teamId === -1;
+            if (data.teamId === -1) { data.teamId = undefined; }
+
+            // If a teamId is provided, it means we want to store the pad in a specific
+            // team drive. In this case, we just need to check if the pad is already
+            // stored in this team drive.
+            // If no team ID is provided, this may be a pad shared with its URL.
+            // We need to check if the pad is stored in any managers (user or teams).
+            // If it is stored, update its data, otherwise ask the user if they want to store it
+            var allData = [];
+            var sendTo = [];
+            var inMyDrive;
+            getAllStores().forEach(function (s) {
+                if (data.teamId && s.id !== data.teamId) { return; }
+                if (storeLocally && s.id) { return; }
+
+                var res = s.manager.findChannel(channel);
+                if (res.length) {
+                    sendTo.push(s.id);
+                }
+
+                // If we've just accepted ownership for a pad stored in a shared folder,
+                // we need to make a copy of this pad in our drive. We're going to check
+                // if the pad is stored in our MAIN drive.
+                // We only need to check this if the current manager is the target (data.teamId)
+                if (data.teamId === s.id) {
+                    inMyDrive = res.some(function (obj) {
+                        return !obj.fId;
+                    });
+                }
+
+                Array.prototype.push.apply(allData, res);
+            });
+            var contains = allData.length !== 0;
+            allData.forEach(function (obj) {
                 var pad = obj.data;
                 pad.atime = +new Date();
                 pad.title = title;
@@ -856,10 +1017,17 @@ define([
                 pad.href = href;
             });
 
+            // Pads owned by us ("us" can be a user or a team) that are not in our "main" drive
+            // (meaning they are stored in a shared folder) must be added to the "main" drive.
+            // This is to make sure owners always have control over owned data.
+            var edPublic = data.teamId ?
+                    Util.find(store.proxy, ['teams', data.teamId, 'keys', 'edPublic']) :
+                    store.proxy.edPublic;
+            var ownedByMe = Array.isArray(owners) && owners.indexOf(edPublic) !== -1;
+
             // Add the pad if it does not exist in our drive
-            if (!contains) {
+            if (!contains || (ownedByMe && !inMyDrive)) {
                 var autoStore = Util.find(store.proxy, ['settings', 'general', 'autostore']);
-                var ownedByMe = Array.isArray(owners) && owners.indexOf(store.proxy.edPublic) !== -1;
                 if (autoStore !== 1 && !data.forceSave && !data.path && !ownedByMe) {
                     // send event to inner to display the corner popup
                     postMessage(clientId, "AUTOSTORE_DISPLAY_POPUP", {
@@ -873,6 +1041,7 @@ define([
                         href = undefined;
                     }
                     Store.addPad(clientId, {
+                        teamId: data.teamId,
                         href: href,
                         roHref: roHref,
                         channel: channel,
@@ -888,19 +1057,30 @@ define([
                     });
                     return;
                 }
-            } else {
-                sendDriveEvent('DRIVE_CHANGE', {
+            }
+
+            sendTo.forEach(function (teamId) {
+                var send = teamId ? getStore(teamId).sendEvent : sendDriveEvent;
+                send('DRIVE_CHANGE', {
                     path: ['drive', UserObject.FILES_DATA]
                 }, clientId);
-                // Let inner know that dropped files shouldn't trigger the popup
-                postMessage(clientId, "AUTOSTORE_DISPLAY_POPUP", {
-                    stored: true
+            });
+            // Let inner know that dropped files shouldn't trigger the popup
+            postMessage(clientId, "AUTOSTORE_DISPLAY_POPUP", {
+                stored: true
+            });
+            nThen(function (waitFor) {
+                sendTo.forEach(function (teamId) {
+                    onSync(teamId, waitFor());
                 });
-            }
-            onSync(cb);
+            }).nThen(cb);
         };
 
         // Filepicker app
+
+        // Get a map of file data corresponding to the given filters.
+        // The keys used in the map represent the ID of the "files"
+        // TODO maybe we shouldn't mix results from teams and from the user?
         Store.getSecureFilesList = function (clientId, query, cb) {
             var list = {};
             var types = query.types;
@@ -917,20 +1097,31 @@ define([
                 }
                 return filtered;
             };
-            store.manager.getSecureFilesList(where).forEach(function (obj) {
-                var data = obj.data;
-                var id = obj.id;
-                var parsed = Hash.parsePadUrl(data.href || data.roHref);
-                if ((!types || types.length === 0 || types.indexOf(parsed.type) !== -1) &&
-                    !isFiltered(parsed.type, data)) {
-                    list[id] = data;
-                }
+            var channels = [];
+            getAllStores().forEach(function (s) {
+                s.manager.getSecureFilesList(where).forEach(function (obj) {
+                    var data = obj.data;
+                    if (channels.indexOf(data.channel) !== -1) { return; }
+                    var id = obj.id;
+                    var parsed = Hash.parsePadUrl(data.href || data.roHref);
+                    if ((!types || types.length === 0 || types.indexOf(parsed.type) !== -1) &&
+                        !isFiltered(parsed.type, data)) {
+                        list[id] = data;
+                    }
+                });
             });
             cb(list);
         };
+        // Get the first pad we can find in any of our managers and return its file data
         Store.getPadData = function (clientId, id, cb) {
-            // FIXME: this is only used for templates at the moment, so we don't need the manager
-            cb(store.userObject.getFileData(id));
+            var res = {};
+            getAllStores().some(function (s) {
+                var d = s.userObject.getFileData(id);
+                if (!d.roHref && !d.href) { return; }
+                res = d;
+                return true;
+            });
+            cb(res);
         };
 
 
@@ -1007,16 +1198,22 @@ define([
         };
 
         // Get hashes for the share button
+        // If we can find a stronger hash
         Store.getStrongerHash = function (clientId, data, cb) {
-            var allPads = Util.find(store.proxy, ['drive', 'filesData']) || {};
+            var found = getAllStores().some(function (s) {
+                var allPads = Util.find(s.proxy, ['drive', 'filesData']) || {};
 
-            // If we have a stronger version in drive, add it and add a redirect button
-            var stronger = Hash.findStronger(data.href, data.channel, allPads);
-            if (stronger) {
-                var parsed2 = Hash.parsePadUrl(stronger.href);
-                return void cb(parsed2.hash);
+                // If we have a stronger version in drive, add it and add a redirect button
+                var stronger = Hash.findStronger(data.href, data.channel, allPads);
+                if (stronger) {
+                    var parsed2 = Hash.parsePadUrl(stronger.href);
+                    cb(parsed2.hash);
+                    return true;
+                }
+            });
+            if (!found) {
+                cb();
             }
-            cb();
         };
 
         // Universal
@@ -1034,6 +1231,7 @@ define([
         var loadUniversal = function (Module, type, waitFor) {
             if (store.modules[type]) { return; }
             store.modules[type] = Module.init({
+                Store: Store,
                 store: store,
                 updateMetadata: function () {
                     broadcast([], "UPDATE_METADATA");
@@ -1050,14 +1248,6 @@ define([
                     });
                 });
             });
-        };
-
-        // Messenger
-        Store.messenger = {
-            execCommand: function (clientId, data, cb) {
-                if (!store.messenger) { return void cb({error: 'Messenger is disabled'}); }
-                store.messenger.execCommand(data, cb);
-            }
         };
 
         // OnlyOffice
@@ -1111,7 +1301,7 @@ define([
             store.mailbox.open('supportadmin', box, function () {
                 console.log('ready');
             });
-            onSync(cb);
+            onSync(null, cb);
         };
 
         //////////////////////////////////////////////////////////////////
@@ -1216,18 +1406,21 @@ define([
                 },
                 onMetadataUpdate: function (metadata) {
                     channel.data = metadata || {};
-                    var allData = store.manager.findChannel(data.channel);
-                    allData.forEach(function (obj) {
-                        obj.data.owners = metadata.owners;
-                        obj.data.atime = +new Date();
-                        if (metadata.expire) {
-                            obj.data.expire = +metadata.expire;
-                        }
+                    getAllStores().forEach(function (s) {
+                        var allData = s.manager.findChannel(data.channel);
+                        allData.forEach(function (obj) {
+                            obj.data.owners = metadata.owners;
+                            obj.data.atime = +new Date();
+                            if (metadata.expire) {
+                                obj.data.expire = +metadata.expire;
+                            }
+                        });
+                        var send = s.sendEvent || sendDriveEvent;
+                        send('DRIVE_CHANGE', {
+                            path: ['drive', UserObject.FILES_DATA]
+                        });
                     });
                     channel.bcast("PAD_METADATA", metadata);
-                    sendDriveEvent('DRIVE_CHANGE', {
-                        path: ['drive', UserObject.FILES_DATA]
-                    });
                 },
                 crypto: {
                     // The encryption and decryption is done in the outer window.
@@ -1345,6 +1538,7 @@ define([
 
             var href, title;
 
+            // XXX TEAMOWNER
             if (!res.some(function (obj) {
                 if (obj.data &&
                     Array.isArray(obj.data.owners) && obj.data.owners.indexOf(edPublic) !== -1 &&
@@ -1379,22 +1573,29 @@ define([
                 cb(metadata);
 
                 // Update owners and expire time in the drive
-                var allData = store.manager.findChannel(data.channel);
-                allData.forEach(function (obj) {
-                    obj.data.atime = +new Date();
-                    obj.data.owners = metadata.owners;
-                    if (metadata.expire) {
-                        obj.data.expire = +metadata.expire;
-                    }
-                });
-                sendDriveEvent('DRIVE_CHANGE', {
-                    path: ['drive', UserObject.FILES_DATA]
+                getAllStores().forEach(function (s) {
+                    var allData = s.manager.findChannel(data.channel);
+                    allData.forEach(function (obj) {
+                        obj.data.owners = metadata.owners;
+                        obj.data.atime = +new Date();
+                        if (metadata.expire) {
+                            obj.data.expire = +metadata.expire;
+                        }
+                    });
+                    var send = s.sendEvent || sendDriveEvent;
+                    send('DRIVE_CHANGE', {
+                        path: ['drive', UserObject.FILES_DATA]
+                    });
                 });
             });
         };
         Store.setPadMetadata = function (clientId, data, cb) {
             if (!data.channel) { return void cb({ error: 'ENOTFOUND'}); }
             if (!data.command) { return void cb({ error: 'EINVAL' }); }
+            // XXX TEAMOWNER
+            // If owned by a team, we should use the team rpc here
+            // We'll need common-ui-elements to tell us the "owners" value or we can
+            // call getPadMetadata first
             store.rpc.setMetadata(data, function (err, res) {
                 if (err) { return void cb({ error: err }); }
                 if (!Array.isArray(res) || !res.length) { return void cb({}); }
@@ -1499,72 +1700,60 @@ define([
         };
 
         // SHARED FOLDERS
-        var loadSharedFolder = Store.loadSharedFolder = function (id, data, cb) {
-            var parsed = Hash.parsePadUrl(data.href);
-            var secret = Hash.getSecrets('drive', parsed.hash, data.password);
-            var owners = data.owners;
-            var listmapConfig = {
-                data: {},
-                websocketURL: NetConfig.getWebsocketURL(),
-                channel: secret.channel,
-                readOnly: false,
-                crypto: Crypto.createEncryptor(secret.keys),
-                userName: 'sharedFolder',
-                logLevel: 1,
-                ChainPad: ChainPad,
-                classic: true,
-                network: store.network,
-                metadata: {
-                    validateKey: secret.keys.validateKey || undefined,
-                    owners: owners
+        var addSharedFolderHandler = function () {
+            store.sharedFolders = {};
+            store.handleSharedFolder = function (id, rt) {
+                store.sharedFolders[id] = rt;
+                if (store.driveEvents) {
+                    registerProxyEvents(rt.proxy, id);
                 }
             };
-            var rt = Listmap.create(listmapConfig);
-            store.sharedFolders[id] = rt;
-            rt.proxy.on('ready', function (info) {
-                store.manager.addProxy(id, rt.proxy, info.leave);
-                cb(rt, info.metadata);
-            });
-            if (store.driveEvents) {
-                registerProxyEvents(rt.proxy, id);
-            }
+        };
+        Store.loadSharedFolder = function (teamId, id, data, cb) {
+            var s = getStore(teamId);
+            if (!s) { return void cb({ error: 'ENOTFOUND' }); }
+            var rt = SF.load({
+                network: store.network,
+                store: s
+            }, id, data, cb);
             return rt;
         };
+        var loadSharedFolder = function (id, data, cb) {
+            Store.loadSharedFolder(null, id, data, cb);
+        };
         Store.loadSharedFolderAnon = function (clientId, data, cb) {
-            loadSharedFolder(data.id, data.data, function () {
-                cb();
-            });
+            Store.loadSharedFolder(null, data.id, data.data, cb);
         };
         Store.addSharedFolder = function (clientId, data, cb) {
-            Store.userObjectCommand(clientId, {
-                cmd: 'addSharedFolder',
-                data: data
-            }, cb);
+            var s = getStore(data.teamId);
+            s.manager.addSharedFolder(data, function (id) {
+                var send = data.teamId ? s.sendEvent : sendDriveEvent;
+                send('DRIVE_CHANGE', {
+                    path: ['drive', UserObject.FILES_DATA]
+                }, clientId);
+                cb(id);
+            });
         };
 
         // Drive
         Store.userObjectCommand = function (clientId, cmdData, cb) {
             if (!cmdData || !cmdData.cmd) { return; }
             //var data = cmdData.data;
+            var s = getStore(cmdData.teamId);
             var cb2 = function (data2) {
-                //var paths = data.paths || [data.path] || [];
-                //paths = paths.concat(data.newPath ? [data.newPath] : []);
-                //paths.forEach(function (p) {
-                    sendDriveEvent('DRIVE_CHANGE', {
-                        path: ['drive', UserObject.FILES_DATA]
-                        //path: ['drive'].concat(p)
-                    }, clientId);
-                //});
-                onSync(function () {
+                var send = cmdData.teamId ? s.sendEvent : sendDriveEvent;
+                send('DRIVE_CHANGE', {
+                    path: ['drive', UserObject.FILES_DATA]
+                }, clientId);
+                onSync(cmdData.teamId, function () {
                     cb(data2);
                 });
             };
-            store.manager.command(cmdData, cb2);
+            s.manager.command(cmdData, cb2);
         };
 
         // Clients management
         var driveEventClients = [];
-        var messengerEventClients = [];
 
         var dropChannel = function (chanId) {
             try {
@@ -1589,10 +1778,6 @@ define([
             var driveIdx = driveEventClients.indexOf(clientId);
             if (driveIdx !== -1) {
                 driveEventClients.splice(driveIdx, 1);
-            }
-            var messengerIdx = messengerEventClients.indexOf(clientId);
-            if (messengerIdx !== -1) {
-                messengerEventClients.splice(messengerIdx, 1);
             }
             try {
                 store.cursor.removeClient(clientId);
@@ -1684,28 +1869,6 @@ define([
             }
         };
 
-        var sendMessengerEvent = function (q, data) {
-            messengerEventClients.forEach(function (cId) {
-                postMessage(cId, q, data);
-            });
-        };
-        Store._subscribeToMessenger = function (clientId) {
-            if (messengerEventClients.indexOf(clientId) === -1) {
-                messengerEventClients.push(clientId);
-            }
-        };
-        var loadMessenger = function () {
-            if (AppConfig.availablePadTypes.indexOf('contacts') === -1) { return; }
-            var messenger = store.messenger = Messenger.messenger(store, function () {
-                broadcast([], "UPDATE_METADATA");
-            });
-            messenger.on('event', function (ev, data) {
-                sendMessengerEvent('CHAT_EVENT', {
-                    ev: ev,
-                    data: data
-                });
-            });
-        };
 
 /*
         var loadProfile = function (waitFor) {
@@ -1783,40 +1946,6 @@ define([
         /////////////////////// Init /////////////////////////////////////
         //////////////////////////////////////////////////////////////////
 
-        var loadSharedFolders = function (waitFor) {
-            store.sharedFolders = {};
-            var shared = Util.find(store.proxy, ['drive', UserObject.SHARED_FOLDERS]) || {};
-            // Check if any of our shared folder is expired or deleted by its owner.
-            // If we don't check now, Listmap will create an empty proxy if it no longer exists on
-            // the server.
-            nThen(function (waitFor) {
-                var checkExpired = Object.keys(shared).map(function (fId) {
-                    return shared[fId].channel;
-                });
-                Store.getDeletedPads(null, {list: checkExpired}, waitFor(function (chans) {
-                    if (chans && chans.error) { return void console.error(chans.error); }
-                    if (!Array.isArray(chans) || !chans.length) { return; }
-                    var toDelete = [];
-                    Object.keys(shared).forEach(function (fId) {
-                        if (chans.indexOf(shared[fId].channel) !== -1
-                            && toDelete.indexOf(fId) === -1) {
-                            toDelete.push(fId);
-                        }
-                    });
-                    toDelete.forEach(function (fId) {
-                        var paths = store.userObject.findFile(Number(fId));
-                        store.userObject.delete(paths, waitFor(), true);
-                        delete shared[fId];
-                    });
-                }));
-            }).nThen(function (waitFor) {
-                Object.keys(shared).forEach(function (id) {
-                    var sf = shared[id];
-                    loadSharedFolder(id, sf, waitFor());
-                });
-            }).nThen(waitFor());
-        };
-
         var onReady = function (clientId, returned, cb) {
             var proxy = store.proxy;
             var unpin = function (data, cb) {
@@ -1829,7 +1958,7 @@ define([
             };
             if (!proxy.settings) { proxy.settings = {}; }
             var manager = store.manager = ProxyManager.create(proxy.drive, {
-                onSync: onSync,
+                onSync: function (cb) { onSync(null, cb); },
                 edPublic: proxy.edPublic,
                 pin: pin,
                 unpin: unpin,
@@ -1837,7 +1966,7 @@ define([
                 settings: proxy.settings
             }, {
                 outer: true,
-                removeOwnedChannel: function (data, cb) { Store.removeOwnedChannel('', data, cb); },
+                removeOwnedChannel: function (channel, cb) { Store.removeOwnedChannel('', channel, cb); },
                 edPublic: store.proxy.edPublic,
                 loggedIn: store.loggedIn,
                 log: function (msg) {
@@ -1846,14 +1975,16 @@ define([
                 }
             });
             var userObject = store.userObject = manager.user.userObject;
+            addSharedFolderHandler();
+
             nThen(function (waitFor) {
                 postMessage(clientId, 'LOADING_DRIVE', {
                     state: 2
                 });
                 userObject.migrate(waitFor());
             }).nThen(function (waitFor) {
-                Store.initAnonRpc(null, null, waitFor());
-                Store.initRpc(null, null, waitFor());
+                initAnonRpc(null, null, waitFor());
+                initRpc(null, null, waitFor());
             }).nThen(function (waitFor) {
                 loadMailbox(waitFor);
                 Migrate(proxy, waitFor(), function (version, progress) {
@@ -1867,11 +1998,13 @@ define([
                     state: 3
                 });
                 userObject.fixFiles();
-                loadSharedFolders(waitFor);
-                loadMessenger();
+                SF.loadSharedFolders(Store, store.network, store, userObject, waitFor);
                 loadCursor();
                 loadOnlyOffice();
+                loadUniversal(Messenger, 'messenger', waitFor);
+                store.messenger = store.modules['messenger'];
                 loadUniversal(Profile, 'profile', waitFor);
+                loadUniversal(Team, 'team', waitFor);
                 cleanFriendRequests();
             }).nThen(function () {
                 arePinsSynced(function (err, yes) {

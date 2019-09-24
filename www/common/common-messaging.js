@@ -10,7 +10,7 @@ define([
     var Msg = {};
 
     var createData = Msg.createData = function (proxy, hash) {
-        return {
+        var data = {
             channel: hash || Hash.createChannelId(),
             displayName: proxy['cryptpad.username'],
             profile: proxy.profile && proxy.profile.view,
@@ -19,6 +19,8 @@ define([
             notifications: Util.find(proxy, ['mailboxes', 'notifications', 'channel']),
             avatar: proxy.profile && proxy.profile.avatar
         };
+        if (hash === false) { delete data.channel; }
+        return data;
     };
 
     var getFriend = Msg.getFriend = function (proxy, pubkey) {
@@ -79,9 +81,6 @@ define([
     };
 
     Msg.updateMyData = function (store, curve) {
-        if (store.messenger) {
-            store.messenger.updateMyData();
-        }
         var myData = createData(store.proxy);
         if (store.proxy.friends) {
             store.proxy.friends.me = myData;
@@ -101,6 +100,29 @@ define([
             return void todo(friend);
         }
         eachFriend(store.proxy.friends || {}, todo);
+    };
+
+    Msg.removeFriend = function (store, curvePublic, cb) {
+        var proxy = store.proxy;
+        var friend = proxy.friends[curvePublic];
+        if (!friend) { return void cb({error: 'ENOENT'}); }
+        if (!friend.notifications || !friend.channel) { return void cb({error: 'EINVAL'}); }
+
+        store.mailbox.sendTo('UNFRIEND', {
+            curvePublic: proxy.curvePublic
+        }, {
+            channel: friend.notifications,
+            curvePublic: friend.curvePublic
+        }, function (obj) {
+            if (obj && obj.error) {
+                return void cb(obj);
+            }
+            store.messenger.onFriendRemoved(curvePublic, friend.channel);
+            delete proxy.friends[curvePublic];
+            Realtime.whenRealtimeSyncs(store.realtime, function () {
+                cb(obj);
+            });
+        });
     };
 
     return Msg;

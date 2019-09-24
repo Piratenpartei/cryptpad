@@ -1,7 +1,8 @@
 define([
     '/common/common-messaging.js',
     '/common/common-hash.js',
-], function (Messaging, Hash) {
+    '/common/common-util.js',
+], function (Messaging, Hash, Util) {
 
     var getRandomTimeout = function (ctx) {
         var lag = ctx.store.realtime.getLag().lag || 0;
@@ -154,7 +155,7 @@ define([
             friend[key] = msg.content[key];
         });
         if (ctx.store.messenger) {
-            ctx.store.messenger.onFriendUpdate(curve, friend);
+            ctx.store.messenger.onFriendUpdate(curve);
         }
         ctx.updateMetadata();
         cb(true);
@@ -308,6 +309,85 @@ define([
         }
         cb(false);
     };
+
+    var invitedTo = {};
+    handlers['INVITE_TO_TEAM'] = function (ctx, box, data, cb) {
+        var msg = data.msg;
+        var content = msg.content;
+
+        if (msg.author !== content.user.curvePublic) { return void cb(true); }
+        if (!content.team) {
+            console.log('Remove invalid notification');
+            return void cb(true);
+        }
+
+        if (invitedTo[content.team.channel]) { return void cb(true); }
+
+        var myTeams = Util.find(ctx, ['store', 'proxy', 'teams']) || {};
+        var alreadyMember = Object.keys(myTeams).some(function (k) {
+            var team = myTeams[k];
+            return team.channel === content.team.channel;
+        });
+        if (alreadyMember) { return void cb(true); }
+
+        invitedTo[content.team.channel] = true;
+
+        cb(false);
+    };
+    removeHandlers['INVITE_TO_TEAM'] = function (ctx, box, data) {
+        var channel = Util.find(data, ['content', 'team', 'channel']);
+        delete invitedTo[channel];
+    };
+
+    handlers['KICKED_FROM_TEAM'] = function (ctx, box, data, cb) {
+        var msg = data.msg;
+        var content = msg.content;
+
+        if (msg.author !== content.user.curvePublic) { return void cb(true); }
+        if (!content.teamChannel) {
+            console.log('Remove invalid notification');
+            return void cb(true);
+        }
+
+        cb(false);
+    };
+
+    handlers['INVITE_TO_TEAM_ANSWER'] = function (ctx, box, data, cb) {
+        var msg = data.msg;
+        var content = msg.content;
+
+        if (msg.author !== content.user.curvePublic) { return void cb(true); }
+        if (!content.teamChannel) {
+            console.log('Remove invalid notification');
+            return void cb(true);
+        }
+
+        var myTeams = Util.find(ctx, ['store', 'proxy', 'teams']) || {};
+        var teamId;
+        var team;
+        Object.keys(myTeams).some(function (k) {
+            var _team = myTeams[k];
+            if (_team.channel === content.teamChannel) {
+                teamId = k;
+                team = _team;
+                return true;
+            }
+        });
+        if (!teamId) { return void cb(true); }
+
+        content.team = team;
+
+        if (!content.answer) {
+            // If they declined the invitation, remove them from the roster (as a pending member)
+            try {
+                var module = ctx.store.modules['team'];
+                module.removeFromTeam(teamId, msg.author);
+            } catch (e) { console.error(e); }
+        }
+
+        cb(false);
+    };
+
 
     return {
         add: function (ctx, box, data, cb) {

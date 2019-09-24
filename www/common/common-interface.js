@@ -159,13 +159,21 @@ define([
     dialog.frame = function (content, opt) {
         opt = opt || {};
         var cls = opt.wide ? '.wide' : '';
-        return $(h('div.alertify', {
+        var frame = h('div.alertify', {
             tabindex: 1,
         }, [
             h('div.dialog', [
                 h('div'+cls, content),
             ])
-        ])).click(function (e) {
+        ]);
+        var $frame = $(frame);
+        frame.closeModal = function (cb) {
+            $frame.fadeOut(150, function () {
+                $frame.detach();
+                cb();
+            });
+        };
+        return $frame.click(function (e) {
             e.stopPropagation();
         })[0];
     };
@@ -329,6 +337,28 @@ define([
         return tagger;
     };
 
+    dialog.getButtons = function (buttons, onClose) {
+        if (!Array.isArray(buttons)) { return void console.error('Not an array'); }
+        var navs = [];
+        buttons.forEach(function (b) {
+            if (!b.name || !b.onClick) { return; }
+            var button = h('button', { tabindex: '1', 'class': b.className || '' }, b.name);
+            $(button).click(function () {
+                b.onClick();
+                var $modal = $(button).parents('.alertify').first();
+                if ($modal.length && $modal[0].closeModal) {
+                    $modal[0].closeModal(function () {
+                        if (onClose) {
+                            onClose();
+                        }
+                    });
+                }
+            });
+            if (b.keys && b.keys.length) { $(button).attr('data-keys', JSON.stringify(b.keys)); }
+            navs.push(button);
+        });
+        return dialog.nav(navs);
+    };
     dialog.customModal = function (msg, opt) {
         var force = false;
         if (typeof(opt) === 'object') {
@@ -350,29 +380,9 @@ define([
             message = dialog.message(msg);
         }
 
-        var close = function (el) {
-            var $el = $(el).fadeOut(150, function () {
-                $el.detach();
-                if (opt.onClose) {
-                    opt.onClose();
-                }
-            });
-        };
-
-        var navs = [];
-        opt.buttons.forEach(function (b) {
-            if (!b.name || !b.onClick) { return; }
-            var button = h('button', { tabindex: '1', 'class': b.className || '' }, b.name);
-            $(button).click(function () {
-                b.onClick();
-                close($(button).parents('.alertify').first());
-            });
-            if (b.keys && b.keys.length) { $(button).attr('data-keys', JSON.stringify(b.keys)); }
-            navs.push(button);
-        });
         var frame = h('div', [
             message,
-            dialog.nav(navs),
+            dialog.getButtons(opt.buttons, opt.onClose)
         ]);
 
         if (opt.forefront) { $(frame).addClass('forefront'); }
@@ -539,6 +549,30 @@ define([
                 opt.done($ok.closest('.dialog'));
             }
         });
+    };
+
+    UI.proposal = function (content, cb) {
+        var buttons = [{
+            name: Messages.friendRequest_later,
+            onClick: function () {},
+            keys: [27]
+        }, {
+            className: 'primary',
+            name: Messages.friendRequest_accept,
+            onClick: function () {
+                cb(true);
+            },
+            keys: [13]
+        }, {
+            className: 'primary',
+            name: Messages.friendRequest_decline,
+            onClick: function () {
+                cb(false);
+            },
+            keys: [[13, 'ctrl']]
+        }];
+        var modal = dialog.customModal(content, {buttons: buttons});
+        UI.openCustomModal(modal);
     };
 
     UI.log = function (msg) {

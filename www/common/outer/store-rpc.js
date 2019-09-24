@@ -14,7 +14,6 @@ define([
             CREATE_README: Store.createReadme,
             MIGRATE_ANON_DRIVE: Store.migrateAnonDrive,
             // RPC
-            INIT_RPC: Store.initRpc,
             UPDATE_PIN_LIMIT: Store.updatePinLimit,
             GET_PIN_LIMIT: Store.getPinLimit,
             CLEAR_OWNED_CHANNEL: Store.clearOwnedChannel,
@@ -30,7 +29,6 @@ define([
             GET_DELETED_PADS: Store.getDeletedPads,
             GET_PINNED_USAGE: Store.getPinnedUsage,
             // ANON RPC
-            INIT_ANON_RPC: Store.initAnonRpc,
             ANON_RPC_MESSAGE: Store.anonRpcMsg,
             GET_FILE_SIZE: Store.getFileSize,
             GET_MULTIPLE_FILE_SIZE: Store.getMultipleFileSize,
@@ -61,8 +59,6 @@ define([
             // Messaging
             ANSWER_FRIEND_REQUEST: Store.answerFriendRequest,
             SEND_FRIEND_REQUEST: Store.sendFriendRequest,
-            // Chat
-            CHAT_COMMAND: Store.messenger.execCommand,
             // OnlyOffice
             OO_COMMAND: Store.onlyoffice.execCommand,
             // Cursor
@@ -102,7 +98,6 @@ define([
         // Internal calls
         Rpc._removeClient = Store._removeClient;
         Rpc._subscribeToDrive = Store._subscribeToDrive;
-        Rpc._subscribeToMessenger = Store._subscribeToMessenger;
 
         return Rpc;
     };

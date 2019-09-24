@@ -458,7 +458,9 @@ define([
                 }
             }));
         }).nThen(function () {
-            cb(id);
+            Env.onSync(function () {
+                cb(id);
+            });
         });
     };
 
@@ -734,11 +736,19 @@ define([
     // We're going to return the value with the most recent atime. The attributes may have been
     // updated in a shared folder by another user, so the most recent one is more likely to be the
     // correct one.
+    // NOTE: we also return the atime, so that we can also check with each team manager
     var getPadAttribute = function (Env, data, cb) {
         cb = cb || function () {};
         var sfId = Env.user.userObject.getSFIdFromHref(data.href);
         if (sfId) {
-            return void cb(null, Env.user.proxy[UserObject.SHARED_FOLDERS][sfId][data.attr]);
+            var sfData = Env.user.proxy[UserObject.SHARED_FOLDERS][sfId];
+            setTimeout(function () {
+                cb(null, {
+                    value: sfData[data.attr],
+                    atime: 1
+                });
+            });
+            return;
         }
         var datas = findHref(Env, data.href);
         var res = {};
@@ -751,7 +761,9 @@ define([
                 res.value = value;
             }
         });
-        cb(null, res.value);
+        setTimeout(function () {
+            cb(null, res);
+        });
     };
 
     var getTagsList = function (Env) {
@@ -935,6 +947,7 @@ define([
             // Manager
             addProxy: callWithEnv(addProxy),
             removeProxy: callWithEnv(removeProxy),
+            addSharedFolder: callWithEnv(_addSharedFolder),
             // Drive
             command: callWithEnv(onCommand),
             getPadAttribute: callWithEnv(getPadAttribute),

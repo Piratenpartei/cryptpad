@@ -167,11 +167,12 @@ define([
     // Universal direct channel
     var modules = {};
     funcs.makeUniversal = function (type, cfg) {
-        if (modules[type]) { return; }
+        if (cfg && cfg.onEvent) {
+            modules[type] = {
+                onEvent: cfg.onEvent || function () {}
+            };
+        }
         var sframeChan = funcs.getSframeChannel();
-        modules[type] = {
-            onEvent: cfg.onEvent || function () {}
-        };
         return {
             execCommand: function (cmd, data, cb) {
                 sframeChan.query("Q_UNIVERSAL_COMMAND", {
@@ -210,6 +211,15 @@ define([
         ctx.sframeChan.query('Q_CHAT_OPENPADCHAT', channel, function (err, obj) {
             if (err || (obj && obj.error)) { console.error(err || (obj && obj.error)); }
         });
+    };
+
+    // Team Chat
+    var teamChatChannel;
+    funcs.setTeamChat = function (channel) {
+        teamChatChannel = channel;
+    };
+    funcs.getTeamChat = function () {
+        return teamChatChannel;
     };
 
     var cursorChannel;
@@ -297,6 +307,7 @@ define([
             owned: cfg.owned,
             expire: cfg.expire,
             password: cfg.password,
+            team: cfg.team,
             template: cfg.template,
             templateId: cfg.templateId
         }, cb);
@@ -316,9 +327,9 @@ define([
             if (cb) { cb(data); }
         });
     };
-    funcs.getPinUsage = function (cb) {
+    funcs.getPinUsage = function (teamId, cb) {
         cb = cb || $.noop;
-        ctx.sframeChan.query('Q_PIN_GET_USAGE', null, function (err, data) {
+        ctx.sframeChan.query('Q_PIN_GET_USAGE', teamId, function (err, data) {
             cb(err || data.error, data.data);
         });
     };
@@ -692,9 +703,10 @@ define([
             });
 
             ctx.sframeChan.ready();
-            cb(funcs);
 
             Mailbox.create(funcs);
+
+            cb(funcs);
         });
     } };
 });
