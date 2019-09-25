@@ -2434,15 +2434,6 @@ define([
                 content: h('span', Messages.supportPage || 'Support')
             });
         }
-        options.push({
-            tag: 'a',
-            attributes: {
-                'target': '_blank',
-                'href': origin+'/features.html',
-                'class': 'fa fa-star-o'
-            },
-            content: h('span', priv.plan ? Messages.settings_cat_subscription : Messages.pricing)
-        });
         options.push({ tag: 'hr' });
         // Add login or logout button depending on the current status
         if (accountName) {
