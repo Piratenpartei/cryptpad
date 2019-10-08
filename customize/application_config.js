@@ -15,5 +15,6 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.availablePadTypes = ['drive', 'code', 'pad', 'slide', 'file', 'todo', 'oodoc', 'sheet', 'contacts'];
     config.registeredOnlyTypes = ['contacts',];
     config.availableLanguages = ['de', 'en'];
+    config.surveyURL = "https://survey.cryptpad.fr/index.php/963384?lang=de";
     return AppConfig;
 });
