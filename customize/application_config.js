@@ -12,8 +12,8 @@ define(['/common/application_config_internal.js'], function (AppConfig) {
     config.disableUserlistNotifications = true;
     config.disableCrowdfundingMessages = true;
     config.hideLoadingScreenTips = true;
-    config.availablePadTypes = ['drive', 'code', 'pad', 'slide', 'file', 'todo', 'oodoc', 'sheet', 'contacts'];
-    config.registeredOnlyTypes = ['contacts',];
+    config.availablePadTypes = ['drive', 'code', 'pad', 'slide', 'file', 'todo', 'oodoc', 'sheet', 'teams', 'contacts'];
+    config.registeredOnlyTypes = ['teams',];
     config.availableLanguages = ['de', 'en'];
     config.surveyURL = "https://survey.cryptpad.fr/index.php/963384?lang=de";
     return AppConfig;
