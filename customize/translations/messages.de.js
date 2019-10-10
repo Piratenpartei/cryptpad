@@ -8,7 +8,7 @@
 define(['/common/translations/messages.de.js'], function (Messages) {
     // Replace the existing keys in your copied file here:
     // Messages.button_newpad = "New Rich Text Document";
-    out = Messages
+    out = Messages;
     out.type.code = 'Pad (Markdown/Code)';
     out.button_newcode = 'Neues Pad (Markdown/Code)';
     out.themeButtonTitle = "Wähle das Farbschema für Pad(Markdown/Code)- und Folieneditor";

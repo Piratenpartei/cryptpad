@@ -72,45 +72,6 @@ define([
         });
         UI.addTooltips();
 
-        /*
-        var more = icons.length < 4? undefined: h('div.bs-callout.cp-callout-more', [
-                h('div.cp-callout-more-lessmsg.cp-hidden', [
-                    "see less ",
-                    h('i.fa.fa-caret-up')
-                ]),
-                h('div.cp-callout-more-moremsg', [
-                    "see more ",
-                    h('i.fa.fa-caret-down')
-                ]),
-                {
-                    onclick: function () {
-                        if (showingMore) {
-                            $('.cp-more, .cp-callout-more-lessmsg').addClass('cp-hidden');
-                            $('.cp-callout-more-moremsg').removeClass('cp-hidden');
-                        } else {
-                            $('.cp-more, .cp-callout-more-lessmsg').removeClass('cp-hidden');
-                            $('.cp-callout-more-moremsg').addClass('cp-hidden');
-                        }
-                        showingMore = !showingMore;
-                    }
-                }
-            ]);*/
-
-        var _link = h('a', {
-            href: "https://opencollective.com/cryptpad/",
-            target: '_blank',
-            rel: 'noopener',
-        });
-
-        var crowdFunding = h('button', [
-            Msg.crowdfunding_button
-        ]);
-
-        $(crowdFunding).click(function () {
-            _link.click();
-            Feedback.send('HOME_SUPPORT_CRYPTPAD');
-        });
-        var blocks = "";
         return [
             h('div#cp-main', [
                 Pages.infopageTopbar(),
@@ -123,14 +84,8 @@ define([
                         ]),
                         h('div.col-12.col-sm-6.cp-app-grid', [
                             icons,
-                            //more
                         ])
                     ]),
-                    /*h('div.row', [
-                        h('div.cp-crowdfunding', [
-                            crowdFunding
-                        ])
-                    ])*/
                 ]),
             ]),
             Pages.infopageFooter(),
