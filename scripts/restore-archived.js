@@ -1,7 +1,7 @@
 var nThen = require("nthen");
 
-var Store = require("../storage/file");
-var config = require("../lib/load-config");
+var Store = require("../storage/file.js");
+var config = require("../lib/load-config.js");
 
 var store;
 var Log;
@@ -14,7 +14,7 @@ nThen(function (w) {
 
     // load the logging module so that you have a record of which
     // files were archived or deleted at what time
-    var Logger = require("../lib/log");
+    var Logger = require("../lib/log.js");
     Logger.create(config, w(function (_) {
         Log = _;
     }));
