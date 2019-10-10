@@ -72,6 +72,77 @@ define([
         });
         UI.addTooltips();
 
+        /*
+        var more = icons.length < 4? undefined: h('div.bs-callout.cp-callout-more', [
+                h('div.cp-callout-more-lessmsg.cp-hidden', [
+                    "see less ",
+                    h('i.fa.fa-caret-up')
+                ]),
+                h('div.cp-callout-more-moremsg', [
+                    "see more ",
+                    h('i.fa.fa-caret-down')
+                ]),
+                {
+                    onclick: function () {
+                        if (showingMore) {
+                            $('.cp-more, .cp-callout-more-lessmsg').addClass('cp-hidden');
+                            $('.cp-callout-more-moremsg').removeClass('cp-hidden');
+                        } else {
+                            $('.cp-more, .cp-callout-more-lessmsg').removeClass('cp-hidden');
+                            $('.cp-callout-more-moremsg').addClass('cp-hidden');
+                        }
+                        showingMore = !showingMore;
+                    }
+                }
+            ]);*/
+
+        var _link = h('a', {
+            href: "https://opencollective.com/cryptpad/",
+            target: '_blank',
+            rel: 'noopener',
+        });
+
+        var crowdFunding = h('button', [
+            Msg.crowdfunding_button
+        ]);
+
+        $(crowdFunding).click(function () {
+            _link.click();
+            Feedback.send('HOME_SUPPORT_CRYPTPAD');
+        });
+
+        var blocks = h('div.container',[
+            h('div.row.justify-content-sm-center',[
+                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-host', h('div', [
+                    Pages.setHTML(h('span'), Msg.home_host),
+                    h('div.cp-img-container', [
+                        h('img.agpl', {
+                            src: "/customize/images/AGPL.png",
+                            title: Msg.home_host_agpl
+                        }),
+                        h('a.img', {
+                            href: 'https://blog.cryptpad.fr/2018/11/13/CryptPad-receives-NGI-Startup-Award/',
+                            target: '_blank'
+                        }, h('img.ngi', {
+                            src: "/customize/images/ngi.png",
+                            title: Msg.home_ngi
+                        }))
+                    ])
+                ])),
+                h('div.col-12.col-sm-4.cp-index-block.cp-index-block-product', h('div', [
+                    Msg.home_product
+                ])),
+                AppConfig.disableCrowdfundingMessages ? undefined : h('div.col-12.col-sm-4.cp-index-block.cp-index-block-help', h('div', [
+                    Msg.crowdfunding_home1,
+                    h('br'),
+                    Msg.crowdfunding_home2,
+                    h('br'),
+                    crowdFunding,
+                    _link
+                ])),
+            ])
+        ]);
+
         return [
             h('div#cp-main', [
                 Pages.infopageTopbar(),
@@ -84,8 +155,15 @@ define([
                         ]),
                         h('div.col-12.col-sm-6.cp-app-grid', [
                             icons,
+                            //more
                         ])
                     ]),
+                    blocks,
+                    /*h('div.row', [
+                        h('div.cp-crowdfunding', [
+                            crowdFunding
+                        ])
+                    ])*/
                 ]),
             ]),
             Pages.infopageFooter(),
